@@ -1,0 +1,5 @@
+{
+    "python.pythonInterpreterPath": "C:\\Users\\mohit\\anaconda3\\envs\\PyExplainer\\python.exe",
+    "python.terminal.activateEnvironment": true,
+    "terminal.integrated.shell.windows": "C:\\Windows\\System32\\cmd.exe"
+}
