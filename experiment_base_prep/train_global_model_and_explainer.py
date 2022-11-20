@@ -13,6 +13,9 @@ from lime.lime.lime_tabular import LimeTabularExplainer
 
 from pyexplainer.pyexplainer_pyexplainer import *
 
+sys.path.append(os.path.abspath('../'))
+from mohit_base_algorithm.pyexplainer_pyexplainer import *
+
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -86,14 +89,20 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
     dep = 'defect'
     class_label = ['clean', 'defect']
     
-    # for our apporach
-    pyExp = PyExplainer(x_train, y_train, indep, dep, global_model, class_label)
 
-    # for baseline
-    # note: 6 is index of 'self' feature
-    lime_explainer = LimeTabularExplainer(x_train.values, categorical_features=[6],
-                                      feature_names=indep, class_names=class_label, 
-                                      random_state=0)
+    ##################################
+    # # for our apporach
+    # pyExp = PyExplainer(x_train, y_train, indep, dep, global_model, class_label)
+
+    # # for baseline
+    # # note: 6 is index of 'self' feature
+    # lime_explainer = LimeTabularExplainer(x_train.values, categorical_features=[6],
+    #                                   feature_names=indep, class_names=class_label, 
+    #                                   random_state=0)
+    ##################################
+
+    # for my testing 
+    mBase = MohitBase(x_train, y_train, indep, dep, global_model, class_label)
 
     feature_df = x_test.loc[df_indices]
     test_label = y_test.loc[df_indices]
@@ -104,34 +113,57 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
 
         row_index = str(X_explain.index[0])
 
-        print("\t starting pyexplainer")
-        pyExp_obj = pyExp.explain(X_explain,
+        # Mohit Base testing
+        print("\t starting Mohit-base")
+        mBase_obj = mBase.explain(X_explain,
                                    y_explain,
                                    search_function = 'CrossoverInterpolation')
+        print("\t done Mohit-base")
+
+        mBase_obj['commit_id'] = row_index
+
+        # because this error is done by authors of actual paper. 
+        mBase_obj['local_model'] = mBase_obj['local_rulefit_model']
+        del mBase_obj['local_rulefit_model']
+
+        # # Commenting the Part with PyExplainer, 
+        # #################################
+        # print("\t starting pyexplainer")
+        # pyExp_obj = pyExp.explain(X_explain,
+        #                            y_explain,
+        #                            search_function = 'CrossoverInterpolation')
+        # print("\t done pyexplainer")
+
+        # pyExp_obj['commit_id'] = row_index
+
+        # # because I don't want to change key name in another evaluation file
+        # pyExp_obj['local_model'] = pyExp_obj['local_rulefit_model']
+        # del pyExp_obj['local_rulefit_model']
+        # #################################
         
-        print("\t done pyexplainer")
+        # # Commenting the part with lime.
+        # ################################# 
+        # print("\t starting lime")
+        # X_explain = feature_df.iloc[i] # to prevent error in LIME
+        # exp, synt_inst, synt_inst_for_local_model, selected_feature_indices, local_model = lime_explainer.explain_instance(X_explain, global_model.predict_proba, num_samples=5000)
 
-        pyExp_obj['commit_id'] = row_index
+        # lime_obj = {}
+        # lime_obj['rule'] = exp
+        # lime_obj['synthetic_instance_for_global_model'] = synt_inst
+        # lime_obj['synthetic_instance_for_lobal_model'] = synt_inst_for_local_model
+        # lime_obj['local_model'] = local_model
+        # lime_obj['selected_feature_indeces'] = selected_feature_indices
+        # lime_obj['commit_id'] = row_index
+        # print("\t done lime")
+        # #################################
 
-        # because I don't want to change key name in another evaluation file
-        pyExp_obj['local_model'] = pyExp_obj['local_rulefit_model']
-        del pyExp_obj['local_rulefit_model']
+        # load already trained file, from previous executions. 
+        all_explainer = pickle.load(open(save_dir+'/all_explainer_'+row_index+'.pkl','rb'))
+
+        # update the object
+        all_explainer = {'pyExplainer':all_explainer['pyExplainer'], 'LIME': all_explainer['LIME'] , 'MBase' : mBase_obj}
         
-        print("\t starting lime")
-        X_explain = feature_df.iloc[i] # to prevent error in LIME
-        exp, synt_inst, synt_inst_for_local_model, selected_feature_indices, local_model = lime_explainer.explain_instance(X_explain, global_model.predict_proba, num_samples=5000)
-
-        lime_obj = {}
-        lime_obj['rule'] = exp
-        lime_obj['synthetic_instance_for_global_model'] = synt_inst
-        lime_obj['synthetic_instance_for_lobal_model'] = synt_inst_for_local_model
-        lime_obj['local_model'] = local_model
-        lime_obj['selected_feature_indeces'] = selected_feature_indices
-        lime_obj['commit_id'] = row_index
-        print("\t done lime")
-
-        all_explainer = {'pyExplainer':pyExp_obj, 'LIME': lime_obj}
-        
+        # write the updated object. 
         pickle.dump(all_explainer, open(save_dir+'/all_explainer_'+row_index+'.pkl','wb'))
         
         print('finished {}/{} commits'.format(str(i+1), str(len(feature_df))))
