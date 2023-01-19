@@ -104,6 +104,7 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
     # for my testing 
     mBase = MohitBase(x_train, y_train, indep, dep, global_model, class_label)
 
+
     feature_df = x_test.loc[df_indices]
     test_label = y_test.loc[df_indices]
     
@@ -117,8 +118,10 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
         print("\t starting Mohit-base")
         mBase_obj = mBase.explain(X_explain,
                                    y_explain,
-                                   search_function = 'CrossoverInterpolation')
+                                   search_function = 'CrossoverInterpolation',debug=True)
         print("\t done Mohit-base")
+
+        break # for testing 
 
         mBase_obj['commit_id'] = row_index
 

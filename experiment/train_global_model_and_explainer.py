@@ -104,12 +104,12 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
 
         row_index = str(X_explain.index[0])
 
-        print("\t starting pyexplainer")
+        # print("\t starting pyexplainer")
         pyExp_obj = pyExp.explain(X_explain,
                                    y_explain,
                                    search_function = 'CrossoverInterpolation')
         
-        print("\t done pyexplainer")
+        # print("\t done pyexplainer")
 
         pyExp_obj['commit_id'] = row_index
 
@@ -117,7 +117,7 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
         pyExp_obj['local_model'] = pyExp_obj['local_rulefit_model']
         del pyExp_obj['local_rulefit_model']
         
-        print("\t starting lime")
+        # print("\t starting lime")
         X_explain = feature_df.iloc[i] # to prevent error in LIME
         exp, synt_inst, synt_inst_for_local_model, selected_feature_indices, local_model = lime_explainer.explain_instance(X_explain, global_model.predict_proba, num_samples=5000)
 
@@ -128,7 +128,7 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
         lime_obj['local_model'] = local_model
         lime_obj['selected_feature_indeces'] = selected_feature_indices
         lime_obj['commit_id'] = row_index
-        print("\t done lime")
+        # print("\t done lime")
 
         all_explainer = {'pyExplainer':pyExp_obj, 'LIME': lime_obj}
         

@@ -10,7 +10,7 @@ import numpy as np
 from IPython.display import display
 from my_util import *
 from lime.lime.lime_tabular import LimeTabularExplainer
-
+from tqdm import tqdm
 from pyexplainer.pyexplainer_pyexplainer import *
 
 import warnings
@@ -98,18 +98,18 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
     feature_df = x_test.loc[df_indices]
     test_label = y_test.loc[df_indices]
     
-    for i in range(0,len(feature_df)):
+    for i in tqdm(range(0,len(feature_df))):
         X_explain = feature_df.iloc[[i]]
         y_explain = test_label.iloc[[i]]
 
         row_index = str(X_explain.index[0])
 
-        print("\t starting pyexplainer")
+        # print("\t starting pyexplainer")
         pyExp_obj = pyExp.explain(X_explain,
                                    y_explain,
                                    search_function = 'CrossoverInterpolation')
         
-        print("\t done pyexplainer")
+        # print("\t done pyexplainer")
 
         pyExp_obj['commit_id'] = row_index
 
@@ -117,7 +117,7 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
         pyExp_obj['local_model'] = pyExp_obj['local_rulefit_model']
         del pyExp_obj['local_rulefit_model']
         
-        print("\t starting lime")
+        # print("\t starting lime")
         X_explain = feature_df.iloc[i] # to prevent error in LIME
         exp, synt_inst, synt_inst_for_local_model, selected_feature_indices, local_model = lime_explainer.explain_instance(X_explain, global_model.predict_proba, num_samples=5000)
 
@@ -128,13 +128,13 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
         lime_obj['local_model'] = local_model
         lime_obj['selected_feature_indeces'] = selected_feature_indices
         lime_obj['commit_id'] = row_index
-        print("\t done lime")
+        # print("\t done lime")
 
         all_explainer = {'pyExplainer':pyExp_obj, 'LIME': lime_obj}
         
         pickle.dump(all_explainer, open(save_dir+'/all_explainer_'+row_index+'.pkl','wb'))
         
-        print('finished {}/{} commits'.format(str(i+1), str(len(feature_df))))
+        # print('finished {}/{} commits'.format(str(i+1), str(len(feature_df))))
 
 def train_global_model_runner(proj_name, global_model_name):
     x_train, x_test, y_train, y_test = prepare_data(proj_name, mode = 'all')

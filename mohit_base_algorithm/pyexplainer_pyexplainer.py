@@ -508,6 +508,7 @@ class MohitBase:
         >>> y_explain = y_test.iloc[[sample_explain_index]]
         >>> py_explainer.explain(X_explain, y_explain, search_function = 'crossoverinterpolation', top_k = 3, max_rules=30, max_iter =5, cv=5, debug = False)
         """
+        
         # check if X_explain is a DF
         if not isinstance(X_explain, pd.core.frame.DataFrame):
             print("X_explain should be type 'pandas.core.frame.DataFrame'")
@@ -550,54 +551,9 @@ class MohitBase:
             n_defect_class = np.sum(synthetic_predictions)
             print('nDefect=', n_defect_class,
                   'from', len(synthetic_predictions))
-        # Step 3 - Build a NodeHarvest local model with synthetic instances
-        # indep_index = [list(synthetic_instances.columns).index(i) for i in self.indep]
-        local_node_harvest = NodeHarvest(max_nodecount=None, solver='scipy_robust')
-        local_random_forest = RandomForestRegressor(n_estimators=100, min_samples_leaf=3)
-        local_random_forest.fit(synthetic_instances.values,synthetic_predictions)
-        local_node_harvest.fit(local_random_forest, synthetic_instances.values,synthetic_predictions)
 
 
-        # local_rulefit_model = RuleFit(rfmode='classify',
-        #                               exp_rand_tree_size=False,
-        #                               random_state=0,
-        #                               max_rules=max_rules,
-        #                               cv=cv,
-        #                               max_iter=max_iter,
-        #                               n_jobs=-1)
-        # local_rulefit_model.fit(synthetic_instances.values,
-        #                         synthetic_predictions,
-        #                         feature_names=self.indep)
-        if debug:
-            print('Constructed a NodeHarvest model')
-
-        # Step 4 Get rules from theRuleFit local model
-        rules = local_rulefit_model.get_rules()
-        rules = rules[rules.coef != 0].sort_values("importance", ascending=False)
-        rules = rules[rules.type == 'rule'].sort_values("importance", ascending=False)
-        positive_filtered_rules = filter_rules(rules, X_explain)
-
-        # positive rules
-        top_k_positive_rules = positive_filtered_rules.loc[positive_filtered_rules['coef'] > 0].sort_values(
-            "importance", ascending=False).head(top_k)
-        top_k_positive_rules['Class'] = self.class_label[1]
-        top_k_positive_rules = positive_filtered_rules.reset_index()
-
-        # negative rules
-        top_k_negative_rules = rules.loc[rules['coef'] < 0].sort_values("importance", ascending=False).head(top_k)
-        top_k_negative_rules['Class'] = self.class_label[0]
-
-        rule_obj = {'synthetic_data': synthetic_instances,
-                    'synthetic_predictions': synthetic_predictions,
-                    'X_explain': X_explain,
-                    'y_explain': y_explain,
-                    'indep': self.indep,
-                    'dep': self.dep,
-                    'top_k_positive_rules': top_k_positive_rules,
-                    'top_k_negative_rules': top_k_negative_rules,
-                    'local_rulefit_model': local_rulefit_model}
-        return rule_obj
-
+        # # Authors Native Code commented. 
         # # Step 3 - Build a RuleFit local model with synthetic instances
         # # indep_index = [list(synthetic_instances.columns).index(i) for i in self.indep]
         # local_rulefit_model = RuleFit(rfmode='classify',
@@ -639,6 +595,70 @@ class MohitBase:
         #             'top_k_negative_rules': top_k_negative_rules,
         #             'local_rulefit_model': local_rulefit_model}
         # return rule_obj
+
+
+        #################### My Base Algorithm Being trained. ##########################
+        # Step 3 - Build a NodeHarvest local model with synthetic instances
+
+        # indep_index = [list(synthetic_instances.columns).index(i) for i in self.indep]
+        
+        local_random_forest = RandomForestRegressor(n_estimators=100, max_leaf_nodes=6)
+        local_random_forest.fit(synthetic_instances.values,synthetic_predictions)
+        if debug : 
+            print("local random forest fit completed")
+        local_node_harvest = NodeHarvest(max_nodecount=2000, solver='cvx_robust')
+        local_node_harvest.fit(local_random_forest, synthetic_instances.values,synthetic_predictions,debug)
+        if debug : 
+            print("local node harvest fit completed")
+
+        # local_rulefit_model = RuleFit(rfmode='classify',
+        #                               exp_rand_tree_size=False,
+        #                               random_state=0,
+        #                               max_rules=max_rules,
+        #                               cv=cv,
+        #                               max_iter=max_iter,
+        #                               n_jobs=-1)
+        # local_rulefit_model.fit(synthetic_instances.values,
+        #                         synthetic_predictions,
+        #                         feature_names=self.indep)
+
+        # Todo 
+        # AUTHORS have passed paramter name during their training, which is obvious, I have to train Nodehrvest with that only. 
+        # and then i have to understand how to obtain results from Nodeharvest 
+        # 1. to understand how rulefit handles the feauture names
+        # 2. to understand how rulefit extracts rules
+        # 3. understand how nodeharvest extracts rules
+        # 4. integrate feature names with node harvest
+        # 5. supply rules needed in pyexplainer from nodeharvest 
+
+        # Step 4 Get rules from theRuleFit local model
+        rules = local_rulefit_model.get_rules()
+        rules = rules[rules.coef != 0].sort_values("importance", ascending=False)
+        rules = rules[rules.type == 'rule'].sort_values("importance", ascending=False)
+        positive_filtered_rules = filter_rules(rules, X_explain)
+
+        # positive rules
+        top_k_positive_rules = positive_filtered_rules.loc[positive_filtered_rules['coef'] > 0].sort_values(
+            "importance", ascending=False).head(top_k)
+        top_k_positive_rules['Class'] = self.class_label[1]
+        top_k_positive_rules = positive_filtered_rules.reset_index()
+
+        # negative rules
+        top_k_negative_rules = rules.loc[rules['coef'] < 0].sort_values("importance", ascending=False).head(top_k)
+        top_k_negative_rules['Class'] = self.class_label[0]
+
+        rule_obj = {'synthetic_data': synthetic_instances,
+                    'synthetic_predictions': synthetic_predictions,
+                    'X_explain': X_explain,
+                    'y_explain': y_explain,
+                    'indep': self.indep,
+                    'dep': self.dep,
+                    'top_k_positive_rules': top_k_positive_rules,
+                    'top_k_negative_rules': top_k_negative_rules,
+                    'local_rulefit_model': local_rulefit_model}
+        return rule_obj
+
+       
 
     def generate_bullet_data(self, parsed_rule_object):
         """Generate bullet chart data (a list of dict) to be implemented with d3.js chart.
@@ -850,6 +870,8 @@ class MohitBase:
         :obj:`dict`
             A dict with two keys 'synthetic_data' and 'sampled_class_frequency' generated via Crossover and Interpolation.
         """
+        if debug:
+            print(">> generating crossover interpolation")
         # categorical_vars = []
 
         X_train_i = self.X_train.copy()

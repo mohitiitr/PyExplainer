@@ -6,6 +6,7 @@ from collections import deque
 import numpy as np
 from scipy.linalg import svd
 from sklearn.tree import _tree as ctree
+from cvxopt import *
 
 
 class WeightedTree:
@@ -135,7 +136,9 @@ class NodeHarvest:
 
     .. [2] http://cvxopt.org
     """
-    def __init__(self, max_nodecount=None, max_interaction=None, solver='scipy_robust', tolerance=1e-5,
+
+    
+    def __init__(self, max_nodecount=None, max_interaction=None, solver='cvx_robust', tolerance=1e-5,
                  **kwargs):
         self.w_root = None
         self.solver_args = kwargs
@@ -146,12 +149,12 @@ class NodeHarvest:
         self.coverage_matrix_ = np.zeros((0, 0))
         self.estimators_ = []
 
-    def fit(self, forest, x, y):
+    def fit(self, forest, x, y, debug=False):
         x = np.asarray(x)
         y = np.asarray(y)
 
         self.coverage_matrix_, tree_indices, node_indices = _compute_coverage_matrix(forest, x, self.max_nodecount,
-                                                                                     self.max_interaction)
+                                                                                     self.max_interaction,debug)
 
         means = np.dot(y, self.coverage_matrix_) / np.sum(self.coverage_matrix_, axis=0)
 
@@ -335,9 +338,12 @@ solvers = {'cvx_robust': _solve_cvx,
            'scipy_fast': _solve_scipy2}
 
 
-def _forest_apply_generator(forest, x, interactions=False):
+def _forest_apply_generator(forest, x, interactions=False, debug = False):
     """Generator that computes coverage for all nodes in a forest."""
     for nt, tree in enumerate(forest.estimators_):
+
+        if debug : 
+            print(nt + "  " + type(tree))
         i = _tree_apply(tree.tree_, x)
         if interactions:
             tfc = _tree_featurecount(tree.tree_)
@@ -348,12 +354,12 @@ def _forest_apply_generator(forest, x, interactions=False):
                 yield tuple(column), nt, ni, None
 
 
-def _compute_coverage_matrix(forest, x, max_nodecount, max_interaction):
+def _compute_coverage_matrix(forest, x, max_nodecount, max_interaction, debug = False):
     """Compute coverage matrix I.
     """
 
     nodes = {}
-    for (i, nt, ni, nf) in _forest_apply_generator(forest, x, max_interaction):
+    for (i, nt, ni, nf) in _forest_apply_generator(forest, x, max_interaction,debug):
         # limit feature interaction
         if max_interaction and nf > max_interaction:
             continue

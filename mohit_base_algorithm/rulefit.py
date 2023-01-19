@@ -448,11 +448,15 @@ class RuleFit(BaseEstimator, TransformerMixin):
                     self.tree_generator.fit(np.copy(X, order='C'), np.copy(y, order='C'))
                     curr_est_ = curr_est_ + 1
                 self.tree_generator.set_params(warm_start=False)
+
+            # Todo replicate this 
             tree_list = self.tree_generator.estimators_
             if isinstance(self.tree_generator, RandomForestRegressor) or isinstance(self.tree_generator,
                                                                                     RandomForestClassifier):
                 tree_list = [[x] for x in self.tree_generator.estimators_]
 
+
+            # Todo : I have to replicate this function for Nodeharvest. 
             # extract rules
             self.rule_ensemble = RuleEnsemble(tree_list=tree_list,
                                               feature_names=self.feature_names)
