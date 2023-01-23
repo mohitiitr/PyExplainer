@@ -606,8 +606,12 @@ class MohitBase:
         local_random_forest.fit(synthetic_instances.values,synthetic_predictions)
         if debug : 
             print("local random forest fit completed")
-        local_node_harvest = NodeHarvest(max_nodecount=2000, solver='cvx_robust')
-        local_node_harvest.fit(local_random_forest, synthetic_instances.values,synthetic_predictions,debug)
+        local_node_harvest = NodeHarvest(max_nodecount=2500, solver='cvx_robust')
+        local_node_harvest.fit(forest = local_random_forest, 
+                               x = synthetic_instances.values,
+                               y = synthetic_predictions,
+                               feature_names=self.indep,
+                               debug = debug)
         if debug : 
             print("local node harvest fit completed")
 

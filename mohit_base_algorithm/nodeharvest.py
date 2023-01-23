@@ -7,6 +7,7 @@ import numpy as np
 from scipy.linalg import svd
 from sklearn.tree import _tree as ctree
 from cvxopt import *
+import pandas as pd 
 
 
 class WeightedTree:
@@ -149,9 +150,34 @@ class NodeHarvest:
         self.coverage_matrix_ = np.zeros((0, 0))
         self.estimators_ = []
 
-    def fit(self, forest, x, y, debug=False):
+    def fit(self, forest, x, y, feature_names, debug=False):
+
+        if debug : 
+            print(type(x))
+            print(type(y))
+            if isinstance(x, pd.DataFrame): 
+                print(x.head(5))
+            if isinstance(y, pd.DataFrame): 
+                print(y.head(5))
+
+        if feature_names is None:
+            self.feature_names = ['feature_' + str(xname) for xname in range(0, x.shape[1])]
+        else:
+            self.feature_names = feature_names
+
         x = np.asarray(x)
         y = np.asarray(y)
+
+        if debug : 
+            print(type(x))
+            print(type(y))
+            if isinstance(x, pd.DataFrame): 
+                print(x.head(5))
+            if isinstance(y, pd.DataFrame): 
+                print(y.head(5))
+
+        # test recovery of x y other wise, there can be issues for me. 
+
 
         self.coverage_matrix_, tree_indices, node_indices = _compute_coverage_matrix(forest, x, self.max_nodecount,
                                                                                      self.max_interaction,debug)
@@ -343,7 +369,7 @@ def _forest_apply_generator(forest, x, interactions=False, debug = False):
     for nt, tree in enumerate(forest.estimators_):
 
         if debug : 
-            print(nt + "  " + type(tree))
+            print(nt, "  " , type(tree))
         i = _tree_apply(tree.tree_, x)
         if interactions:
             tfc = _tree_featurecount(tree.tree_)
