@@ -207,6 +207,22 @@ class NodeHarvest:
             if not np.all(wtree.weight == 0):
                 self.estimators_.append(wtree)
 
+    # this function returns data frame of rules, with their importance also.
+    def get_rules(self) : 
+
+        n_features = len(self.feature_names)
+        output_rules = []
+        for tree in self.estimators_ : 
+            bounds = _tree_bounds(tree, n_features)
+            rulesForTree = _obtainRulesForEntireTreeFromBounds(bounds)
+            
+            for rule,importance in zip(rulesForTree,tree.weight) : 
+                output_rules += [(rule,importance)]
+        
+        rules = pd.DataFrame(output_rules, columns=["rule","importance"])
+        return rules
+
+
     def predict(self, x):
         x = np.asarray(x)
         n = x.shape[0]
@@ -409,38 +425,6 @@ def _compute_coverage_matrix(forest, x, max_nodecount, max_interaction, debug = 
     return i, tree_indices, node_indices
 
 
-def _tree_featurecount(tree):
-    """Count number of features that contribute to each node in the tree"""
-    features = [set() for _ in range(tree.node_count)]
-    queue = deque([0])
-    while queue:
-        i = queue.pop()
-        l = tree.children_left[i]
-        r = tree.children_right[i]
-        if l != ctree.TREE_LEAF:
-            features[l].update(features[i], {tree.feature[i]})
-            features[r].update(features[i], {tree.feature[i]})
-            queue.extend([l, r])
-    nf = [len(f) for f in features]
-    return nf
-
-
-def _tree_bounds(tree, n_features=None):
-    """Compute final decision rule for each node in tree"""
-    if n_features is None:
-        n_features = np.max(tree.feature) + 1
-    aabbs = [AABB(n_features) for _ in range(tree.node_count)]
-    queue = deque([0])
-    while queue:
-        i = queue.pop()
-        l = tree.children_left[i]
-        r = tree.children_right[i]
-        if l != ctree.TREE_LEAF:
-            aabbs[l], aabbs[r] = aabbs[i].split(tree.feature[i], tree.threshold[i])
-            queue.extend([l, r])
-    return aabbs
-
-
 def _tree_apply(tree, x):
     """Compute coverage matrix of a single tree.
 
@@ -483,6 +467,42 @@ def _unique_rows(a):
     a = np.ascontiguousarray(a)
     unique_a, uidx = np.unique(a.view([('', a.dtype)]*a.shape[1]), return_index=True)
     return unique_a.view(a.dtype).reshape((unique_a.shape[0], a.shape[1])), uidx
+
+
+def _tree_featurecount(tree):
+    """Count number of features that contribute to each node in the tree"""
+    features = [set() for _ in range(tree.node_count)]
+    queue = deque([0])
+    while queue:
+        i = queue.pop()
+        l = tree.children_left[i]
+        r = tree.children_right[i]
+        if l != ctree.TREE_LEAF:
+            features[l].update(features[i], {tree.feature[i]})
+            features[r].update(features[i], {tree.feature[i]})
+            queue.extend([l, r])
+    nf = [len(f) for f in features]
+    return nf
+
+def  _obtainRulesForEntireTreeFromBounds(bounds) : 
+    rulelists = [b.rules() for b in bounds ]
+    rules = [" and ".join[rlist] for rlist in rulelists]
+    return rules
+
+def _tree_bounds(tree, n_features=None):
+    """Compute final decision rule for each node in tree"""
+    if n_features is None:
+        n_features = np.max(tree.feature) + 1
+    aabbs = [AABB(n_features) for _ in range(tree.node_count)]
+    queue = deque([0])
+    while queue:
+        i = queue.pop()
+        l = tree.children_left[i]
+        r = tree.children_right[i]
+        if l != ctree.TREE_LEAF:
+            aabbs[l], aabbs[r] = aabbs[i].split(tree.feature[i], tree.threshold[i])
+            queue.extend([l, r])
+    return aabbs
 
 
 class AABB:
