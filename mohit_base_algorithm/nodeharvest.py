@@ -214,7 +214,7 @@ class NodeHarvest:
         output_rules = []
         for tree in self.estimators_ : 
             bounds = _tree_bounds(tree, n_features)
-            rulesForTree = _obtainRulesForEntireTreeFromBounds(bounds)
+            rulesForTree = _obtainRulesForEntireTreeFromBounds(bounds,self.feature_names)
             
             for rule,importance in zip(rulesForTree,tree.weight) : 
                 output_rules += [(rule,importance)]
@@ -484,9 +484,14 @@ def _tree_featurecount(tree):
     nf = [len(f) for f in features]
     return nf
 
-def  _obtainRulesForEntireTreeFromBounds(bounds) : 
-    rulelists = [b.rules() for b in bounds ]
-    rules = [" and ".join[rlist] for rlist in rulelists]
+def  _obtainRulesForEntireTreeFromBounds(bounds,f_names=None) : 
+    def joinMk(strings):
+        return " and ".join(strings)
+    rulelists = [b.rules(f_names) for b in bounds ]
+    rules = []
+    for rlist in rulelists : 
+        rule = joinMk(rlist)
+        rules.append(rule)
     return rules
 
 def _tree_bounds(tree, n_features=None):

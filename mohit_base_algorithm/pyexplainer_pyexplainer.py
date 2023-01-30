@@ -667,25 +667,14 @@ class MohitBase:
         lnh_rules = lnh_rules.sort_values("importance", ascending=False)
         # all of my rules are directly validated from the tree only hence, there is no requirement to filter the rules. 
 
-        
-        # positive rules
-        top_k_positive_rules = lnh_rules.sort_values("importance", ascending=False).head(top_k)
-        top_k_positive_rules['Class'] = self.class_label[1]
-        top_k_positive_rules = positive_filtered_rules.reset_index()
-
-        # negative rules
-        top_k_negative_rules = rules.loc[rules['coef'] < 0].sort_values("importance", ascending=False).head(top_k)
-        top_k_negative_rules['Class'] = self.class_label[0]
-
         rule_obj = {'synthetic_data': synthetic_instances,
                     'synthetic_predictions': synthetic_predictions,
                     'X_explain': X_explain,
                     'y_explain': y_explain,
                     'indep': self.indep,
                     'dep': self.dep,
-                    'top_k_positive_rules': top_k_positive_rules,
-                    'top_k_negative_rules': top_k_negative_rules,
-                    'local_rulefit_model': local_rulefit_model}
+                    'rules' : lnh_rules,
+                    'local_node_harvest_model': local_node_harvest}
         return rule_obj
 
        

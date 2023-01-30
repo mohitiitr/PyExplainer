@@ -10,6 +10,7 @@ import numpy as np
 from IPython.display import display
 from my_util import *
 from lime.lime.lime_tabular import LimeTabularExplainer
+from tqdm import tqdm
 
 from pyexplainer.pyexplainer_pyexplainer import *
 
@@ -108,26 +109,26 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
     feature_df = x_test.loc[df_indices]
     test_label = y_test.loc[df_indices]
     
-    for i in range(0,len(feature_df)):
+    for i in tqdm(range(0,len(feature_df))):
         X_explain = feature_df.iloc[[i]]
         y_explain = test_label.iloc[[i]]
 
         row_index = str(X_explain.index[0])
 
         # Mohit Base testing
-        print("\t starting Mohit-base")
+        # print("\t starting Mohit-base")
         mBase_obj = mBase.explain(X_explain,
                                    y_explain,
-                                   search_function = 'CrossoverInterpolation',debug=True)
-        print("\t done Mohit-base")
+                                   search_function = 'CrossoverInterpolation',debug=False)
+        # print("\t done Mohit-base")
 
-        break # for testing 
+        # break # for testing 
 
         mBase_obj['commit_id'] = row_index
 
         # because this error is done by authors of actual paper. 
-        mBase_obj['local_model'] = mBase_obj['local_rulefit_model']
-        del mBase_obj['local_rulefit_model']
+        mBase_obj['local_model'] = mBase_obj['local_node_harvest_model']
+        del mBase_obj['local_node_harvest_model']
 
         # # Commenting the Part with PyExplainer, 
         # #################################
@@ -169,7 +170,7 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
         # write the updated object. 
         pickle.dump(all_explainer, open(save_dir+'/all_explainer_'+row_index+'.pkl','wb'))
         
-        print('finished {}/{} commits'.format(str(i+1), str(len(feature_df))))
+        # print('finished {}/{} commits'.format(str(i+1), str(len(feature_df))))
 
 def train_global_model_runner(proj_name, global_model_name):
     x_train, x_test, y_train, y_test = prepare_data(proj_name, mode = 'all')
