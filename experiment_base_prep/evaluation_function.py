@@ -182,31 +182,47 @@ def rq1_eval(proj_name, global_model_name):
         row_index = str(X_explain.index[0])
 
         exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_'+row_index+'.pkl'),'rb'))
+        
+        
+        # processing pyexplainer
         py_exp = exp_obj['pyExplainer']
-        lime_exp = exp_obj['LIME']
-
         # this data can be used for both local and global model
         py_exp_synthetic_data = py_exp['synthetic_data'].values
+
+
+        # processing lime
+        lime_exp = exp_obj['LIME']
         # this data can be used with global model only
         lime_exp_synthetic_data = lime_exp['synthetic_instance_for_global_model']
+
+
+        # processing mohit nodeharvest
+        node_exp = exp_obj['MBase']
+        # data for pyexplainer as of now is same for nodeharvest
+        # TOADD line for synthetic data for MBase
         
         py_exp_local_model = py_exp['local_model']
         lime_exp_local_model = lime_exp['local_model']
+        node_exp_local_model = node_exp['local_model']
+
 
         py_exp_global_pred = global_model.predict(py_exp_synthetic_data)
-
         lime_exp_global_pred = global_model.predict(lime_exp_synthetic_data)
+        # TOADD global predictions for MBASE 
 
         py_exp_dist = euclidean_distances(X_explain.values, py_exp_synthetic_data)
         lime_dist = euclidean_distances(X_explain.values, lime_exp_synthetic_data)
+        # TOADD - euclidean distances -- for MBASE 
 
         py_exp_dist_mean, py_exp_dist_med = aggregate_list(py_exp_dist)
         lime_exp_dist_mean, lime_exp_dist_med = aggregate_list(lime_dist)
+        # TOADD - aggregate list -- for MBASE 
 
         py_exp_serie = pd.Series(data=[proj_name, row_index, 'pyExplainer',
                                        py_exp_dist_med])
         lime_exp_serie = pd.Series(data=[proj_name, row_index, 'LIME',
                                          lime_exp_dist_med])
+        # TOADD - pd series for medians -- for MBASE 
         
         all_eval_result = all_eval_result.append(py_exp_serie,ignore_index=True)
         all_eval_result = all_eval_result.append(lime_exp_serie, ignore_index=True)
