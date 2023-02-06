@@ -197,35 +197,36 @@ def rq1_eval(proj_name, global_model_name):
 
 
         # processing mohit nodeharvest
-        node_exp = exp_obj['MBase']
-        # data for pyexplainer as of now is same for nodeharvest
-        # TOADD line for synthetic data for MBase
+        nh_exp = exp_obj['MBase']
+        nh_exp_synthetic_data = nh_exp['synthetic_data'].values
         
         py_exp_local_model = py_exp['local_model']
         lime_exp_local_model = lime_exp['local_model']
-        node_exp_local_model = node_exp['local_model']
+        nh_exp_local_model = nh_exp['local_model']
 
 
         py_exp_global_pred = global_model.predict(py_exp_synthetic_data)
         lime_exp_global_pred = global_model.predict(lime_exp_synthetic_data)
-        # TOADD global predictions for MBASE 
+        nh_exp_global_pred = global_model.predict(nh_exp_synthetic_data)
 
         py_exp_dist = euclidean_distances(X_explain.values, py_exp_synthetic_data)
         lime_dist = euclidean_distances(X_explain.values, lime_exp_synthetic_data)
-        # TOADD - euclidean distances -- for MBASE 
+        nh_exp_dist = euclidean_distances(X_explain.values, nh_exp_synthetic_data)
 
         py_exp_dist_mean, py_exp_dist_med = aggregate_list(py_exp_dist)
         lime_exp_dist_mean, lime_exp_dist_med = aggregate_list(lime_dist)
-        # TOADD - aggregate list -- for MBASE 
+        nh_exp_dist_mean, nh_exp_dist_med = aggregate_list(nh_exp_dist)
 
         py_exp_serie = pd.Series(data=[proj_name, row_index, 'pyExplainer',
                                        py_exp_dist_med])
         lime_exp_serie = pd.Series(data=[proj_name, row_index, 'LIME',
                                          lime_exp_dist_med])
-        # TOADD - pd series for medians -- for MBASE 
+        nh_exp_serie = pd.Series(data=[proj_name, row_index, 'mBase',
+                                       nh_exp_dist_med]) 
         
         all_eval_result = all_eval_result.append(py_exp_serie,ignore_index=True)
         all_eval_result = all_eval_result.append(lime_exp_serie, ignore_index=True)
+        all_eval_result = all_eval_result.append(nh_exp_serie,ignore_index=True)
         
     all_eval_result.columns =['project', 'commit id', 'method', 'euc_dist_med']
     
@@ -261,6 +262,9 @@ def show_rq1_eval_result():
     all_result.to_csv(result_dir+'/RQ1.csv',index=False)
     
     fig.savefig(fig_dir+'RQ1.png')
+
+def test_file_sync():
+    print("Version 3.0.1, synced file on 2023, 6 Feb, 11:15am")
     
 def rq2_eval(proj_name, global_model_name):
     global_model_name = global_model_name.upper()
