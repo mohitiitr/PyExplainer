@@ -223,16 +223,68 @@ class NodeHarvest:
         return rules
 
 
-    def predict(self, x):
+
+    def predict(self, x, debug = False):
+        if debug : 
+            print("calling predict")
+
         x = np.asarray(x)
         n = x.shape[0]
 
         y_total = np.zeros(n)
         w_total = np.zeros(n)
+        preds = np.zeros(n)
+
         for tree in self.estimators_:
             y, w = tree.predict(x)
             y_total += y
             w_total += w
+
+        for i in range(0,n): 
+            preds[i] = 0.0 if y_total[i]/w_total[i] < 0.5 else 1.0
+        
+        return preds
+    
+    def predict_proba(self, x, debug=False) :
+        x = np.asarray(x)
+        n = x.shape[0]
+
+        w_zero = np.zeros(n)
+        w_total = np.zeros(n)
+
+        def selectWeight(prediction, weight) : 
+            return weight if prediction < 0.5 else 0.0
+
+        def calculateProba(wz_, wt_):
+            return [ wz_/wt_ , (wt_-wz_)/wt_]
+
+        for tree in self.estimators_:
+            y, w = tree.predict(x) # obtain the weighted outcome and tree's weight 
+
+            current_pred = y / w # obtain outcome for this tree for all x values 
+            current_w = [ selectWeight(cp,ww) for (cp,ww) in zip(current_pred,w)]
+
+            w_zero += current_w
+            w_total += w
+
+        proba = [ calculateProba(wz,wt) for (wz,wt) in zip (w_zero,w_total)] 
+        return proba 
+
+    def regress(self, x, debug = False):
+        if debug : 
+            print("calling regress")
+
+        x = np.asarray(x)
+        n = x.shape[0]
+
+        y_total = np.zeros(n)
+        w_total = np.zeros(n)
+
+        for tree in self.estimators_:
+            y, w = tree.predict(x)
+            y_total += y
+            w_total += w
+
         return y_total / w_total
 
     def get_weights(self):

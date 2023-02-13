@@ -264,9 +264,9 @@ def show_rq1_eval_result():
     fig.savefig(fig_dir+'RQ1.png')
 
 def test_file_sync():
-    print("Version 3.0.1, synced file on 2023, 6 Feb, 11:15am")
+    print("Version 4.4.0, synced file on 2023, 13 Feb, 12:10 am")
     
-def rq2_eval(proj_name, global_model_name):
+def rq2_eval(proj_name, global_model_name, debug = False):
     global_model_name = global_model_name.upper()
     
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
@@ -274,8 +274,12 @@ def rq2_eval(proj_name, global_model_name):
     
     pyexp_label, pyexp_prob = [],[]
     lime_label, lime_prob = [],[]
+    nh_label, nh_prob = [], []
     
     for i in range(0,len(feature_df)):
+        if debug : 
+            if i > 0 : 
+                break
         X_explain = feature_df.iloc[[i]]
 
         row_index = str(X_explain.index[0])
@@ -283,30 +287,77 @@ def rq2_eval(proj_name, global_model_name):
         exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_'+row_index+'.pkl'),'rb'))
         py_exp = exp_obj['pyExplainer']
         lime_exp = exp_obj['LIME']
+        nh_exp = exp_obj['MBase']
 
         # this data can be used for both local and global model
         py_exp_synthetic_data = py_exp['synthetic_data'].values
+
         # this data can be used with global model only
         lime_exp_synthetic_data = lime_exp['synthetic_instance_for_global_model']
         # this data can be used with local model only
         lime_exp_synthetic_data_local = lime_exp['synthetic_instance_for_lobal_model']
+
+        # this data can be used for both local and global model 
+        nh_exp_synthetic_data = nh_exp['synthetic_data'].values
         
         py_exp_local_model = py_exp['local_model']
         lime_exp_local_model = lime_exp['local_model']
+        nh_exp_local_model = nh_exp['local_model']
 
         py_exp_global_pred = global_model.predict(py_exp_synthetic_data) 
-        py_exp_local_prob = py_exp_local_model.predict_proba(py_exp_synthetic_data)[:,1]
+        py_exp_local_prob_inter = py_exp_local_model.predict_proba(py_exp_synthetic_data)
+        py_exp_local_prob = py_exp_local_prob_inter[:,1]
         py_exp_local_pred = py_exp_local_model.predict(py_exp_synthetic_data)
-
+        
+        if debug : 
+            print(len(py_exp_synthetic_data))
+            print(py_exp_global_pred[:5]) # vairable is an array so we print, first element of this
+            print(py_exp_local_prob_inter[:5]) # vairable is an array of arrays so we print, first element of this
+            print(type(py_exp_local_prob_inter), py_exp_local_prob_inter.shape())
+            print(py_exp_local_prob[:5]) # vairable is an array so we print, first element of this
+            print(py_exp_local_pred[:5]) # vairable is an array so we print, first element of this
+            # break
+            
         lime_exp_global_pred = global_model.predict(lime_exp_synthetic_data)
         lime_exp_local_prob = lime_exp_local_model.predict(lime_exp_synthetic_data_local)
         lime_exp_local_pred = np.round(lime_exp_local_prob)
+
+        nh_exp_global_pred = global_model.predict(nh_exp_synthetic_data) 
+        nh_exp_local_pred = nh_exp_local_model.predict(nh_exp_synthetic_data,debug=debug)
+
+        # if debug : 
+        #     print("NH")
+        #     print(nh_exp_synthetic_data[1])
+        #     print(nh_exp_local_pred[:5])
+        #     temp = nh_exp_local_model.predict([nh_exp_synthetic_data[1]], debug = True)
+        #     print(temp, type(temp), len(temp), float(temp))
+
+
+        # working here ... 
+        nh_exp_local_prob_inter = nh_exp_local_model.predict_proba(nh_exp_synthetic_data,debug=debug)
+        # nh_exp_local_prob = nh_exp_local_prob_inter[:,1]
         
+        
+        if debug : 
+            print(len(nh_exp_synthetic_data))
+            print(nh_exp_global_pred[:5]) # vairable is an array so we print, first element of this
+            print(nh_exp_local_prob_inter[:5]) # vairable is an array of arrays so we print, first element of this
+            print(type(nh_exp_local_prob_inter), nh_exp_local_prob_inter.shape())
+            # print(nh_exp_local_prob[:5]) # vairable is an array so we print, first element of this
+            print(nh_exp_local_pred[:5]) # vairable is an array so we print, first element of this
+            # break
+
+        break
+
+
         pyexp_label.extend(list(py_exp_global_pred))
         pyexp_prob.extend(list(py_exp_local_prob))
         
         lime_label.extend(list(lime_exp_global_pred))
         lime_prob.extend(list(lime_exp_local_prob))
+
+        nh_label.extend(list(nh_exp_global_pred))
+        nh_prob.extend(list(nh_exp_local_prob))
         
         
         py_exp_auc = roc_auc_score(py_exp_global_pred, py_exp_local_prob)
@@ -322,20 +373,20 @@ def rq2_eval(proj_name, global_model_name):
         
         all_eval_result = all_eval_result.append(py_exp_serie,ignore_index=True)
         all_eval_result = all_eval_result.append(lime_exp_serie, ignore_index=True)
+    
+    # pred_df = pd.DataFrame()
+    
+    # all_tech = ['pyExplainer']*len(pyexp_label) + ['LIME']*len(lime_label)
+    
+    # pred_df['technique'] = all_tech
+    # pred_df['label'] = pyexp_label+lime_label
+    # pred_df['prob'] = pyexp_prob+lime_prob
+    # pred_df['project'] = proj_name
+    
+    # all_eval_result.columns = ['project', 'commit id', 'method', 'AUC', 'F1']
 
-    pred_df = pd.DataFrame()
-    
-    all_tech = ['pyExplainer']*len(pyexp_label) + ['LIME']*len(lime_label)
-    
-    pred_df['technique'] = all_tech
-    pred_df['label'] = pyexp_label+lime_label
-    pred_df['prob'] = pyexp_prob+lime_prob
-    pred_df['project'] = proj_name
-    
-    all_eval_result.columns = ['project', 'commit id', 'method', 'AUC', 'F1']
-
-    all_eval_result.to_csv(result_dir+'RQ2_'+proj_name+'_'+global_model_name+'_global_vs_local_synt_pred.csv',index=False)
-    pred_df.to_csv(result_dir+'RQ2_'+proj_name+'_'+global_model_name+'_probability_distribution.csv',index=False)
+    # all_eval_result.to_csv(result_dir+'RQ2_'+proj_name+'_'+global_model_name+'_global_vs_local_synt_pred.csv',index=False)
+    # pred_df.to_csv(result_dir+'RQ2_'+proj_name+'_'+global_model_name+'_probability_distribution.csv',index=False)
     print('finished RQ2 of',proj_name)
     
 def show_rq2_eval_result():
