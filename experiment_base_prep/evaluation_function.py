@@ -17,7 +17,7 @@ from collections import Counter
 
 sys.path.append(os.path.abspath('../'))
 from pyexplainer.pyexplainer_pyexplainer import *
-
+from tqdm import tqdm 
 
 data_path = './dataset/'
 result_dir = './eval_result/'
@@ -37,27 +37,6 @@ flip_sign_dict = {
 
 if not os.path.exists(fig_dir):
     os.makedirs(fig_dir)
-
-def get_rule_str_of_rulefit(local_model, X_explain):
-    rules = local_model.get_rules()
-    rules = rules[(rules['type']=='rule') & (rules['coef'] > 0) & (rules['importance'] > 0)]
-    rules_list = list(rules['rule'])
-    
-    rule_eval_result = []
-    
-    for r in rules_list:
-        py_exp_pred = eval_rule(r, X_explain)[0]
-        rule_eval_result.append(py_exp_pred)
-          
-    rules['is_satisfy_instance'] = rule_eval_result
-
-    rules = rules[rules['is_satisfy_instance']==True]
-
-    rules = rules.sort_values(by='importance', ascending=False)
-    
-    rule_str = rules.iloc[0]['rule']
-    
-    return rule_str
 
 def aggregate_list(l):
     return np.mean(l), np.median(l)
@@ -264,7 +243,7 @@ def show_rq1_eval_result():
     fig.savefig(fig_dir+'RQ1.png')
 
 def test_file_sync():
-    print("Version 4.4.0, synced file on 2023, 13 Feb, 12:10 am")
+    print("Version 5.2.0, synced file on 2023, 15 Feb, 11:35 am")
     
 def rq2_eval(proj_name, global_model_name, debug = False):
     global_model_name = global_model_name.upper()
@@ -276,7 +255,7 @@ def rq2_eval(proj_name, global_model_name, debug = False):
     lime_label, lime_prob = [],[]
     nh_label, nh_prob = [], []
     
-    for i in range(0,len(feature_df)):
+    for i in tqdm(range(0,len(feature_df))):
         if debug : 
             if i > 0 : 
                 break
@@ -310,10 +289,10 @@ def rq2_eval(proj_name, global_model_name, debug = False):
         py_exp_local_pred = py_exp_local_model.predict(py_exp_synthetic_data)
         
         if debug : 
-            print(len(py_exp_synthetic_data))
+            print("pyexplainer" , len(py_exp_synthetic_data))
             print(py_exp_global_pred[:5]) # vairable is an array so we print, first element of this
             print(py_exp_local_prob_inter[:5]) # vairable is an array of arrays so we print, first element of this
-            print(type(py_exp_local_prob_inter), py_exp_local_prob_inter.shape())
+            print(type(py_exp_local_prob_inter), type(py_exp_local_prob_inter[0]))
             print(py_exp_local_prob[:5]) # vairable is an array so we print, first element of this
             print(py_exp_local_pred[:5]) # vairable is an array so we print, first element of this
             # break
@@ -325,29 +304,18 @@ def rq2_eval(proj_name, global_model_name, debug = False):
         nh_exp_global_pred = global_model.predict(nh_exp_synthetic_data) 
         nh_exp_local_pred = nh_exp_local_model.predict(nh_exp_synthetic_data,debug=debug)
 
-        # if debug : 
-        #     print("NH")
-        #     print(nh_exp_synthetic_data[1])
-        #     print(nh_exp_local_pred[:5])
-        #     temp = nh_exp_local_model.predict([nh_exp_synthetic_data[1]], debug = True)
-        #     print(temp, type(temp), len(temp), float(temp))
-
-
-        # working here ... 
         nh_exp_local_prob_inter = nh_exp_local_model.predict_proba(nh_exp_synthetic_data,debug=debug)
-        # nh_exp_local_prob = nh_exp_local_prob_inter[:,1]
+        nh_exp_local_prob = nh_exp_local_prob_inter[:,1]
         
         
         if debug : 
-            print(len(nh_exp_synthetic_data))
+            print("node harvest", len(nh_exp_synthetic_data))
             print(nh_exp_global_pred[:5]) # vairable is an array so we print, first element of this
             print(nh_exp_local_prob_inter[:5]) # vairable is an array of arrays so we print, first element of this
-            print(type(nh_exp_local_prob_inter), nh_exp_local_prob_inter.shape())
-            # print(nh_exp_local_prob[:5]) # vairable is an array so we print, first element of this
+            print(type(nh_exp_local_prob_inter), type(nh_exp_local_prob_inter[0]) )
+            print(nh_exp_local_prob[:5]) # vairable is an array so we print, first element of this
             print(nh_exp_local_pred[:5]) # vairable is an array so we print, first element of this
             # break
-
-        break
 
 
         pyexp_label.extend(list(py_exp_global_pred))
@@ -366,27 +334,34 @@ def rq2_eval(proj_name, global_model_name, debug = False):
         lime_auc = roc_auc_score(lime_exp_global_pred, lime_exp_local_prob)
         lime_f1 = f1_score(lime_exp_global_pred, lime_exp_local_pred)
 
+        nh_exp_auc = roc_auc_score(nh_exp_global_pred, nh_exp_local_prob)
+        nh_exp_f1 = f1_score(nh_exp_global_pred, nh_exp_local_pred)
+
         py_exp_serie = pd.Series(data=[proj_name, row_index, 'pyExplainer',
                                         py_exp_auc, py_exp_f1])
         lime_exp_serie = pd.Series(data=[proj_name, row_index, 'LIME',
                                            lime_auc, lime_f1])
+        nh_exp_serie = pd.Series(data=[proj_name, row_index, 'mBase',
+                                        nh_exp_auc, nh_exp_f1])
+        
         
         all_eval_result = all_eval_result.append(py_exp_serie,ignore_index=True)
         all_eval_result = all_eval_result.append(lime_exp_serie, ignore_index=True)
+        all_eval_result = all_eval_result.append(nh_exp_serie,ignore_index=True)
     
-    # pred_df = pd.DataFrame()
+    pred_df = pd.DataFrame()
     
-    # all_tech = ['pyExplainer']*len(pyexp_label) + ['LIME']*len(lime_label)
+    all_tech = ['pyExplainer']*len(pyexp_label) + ['LIME']*len(lime_label) + ['mBase']*len(nh_label)
     
-    # pred_df['technique'] = all_tech
-    # pred_df['label'] = pyexp_label+lime_label
-    # pred_df['prob'] = pyexp_prob+lime_prob
-    # pred_df['project'] = proj_name
+    pred_df['technique'] = all_tech
+    pred_df['label'] = pyexp_label+lime_label + nh_label
+    pred_df['prob'] = pyexp_prob+lime_prob+nh_prob
+    pred_df['project'] = proj_name
     
-    # all_eval_result.columns = ['project', 'commit id', 'method', 'AUC', 'F1']
+    all_eval_result.columns = ['project', 'commit id', 'method', 'AUC', 'F1']
 
-    # all_eval_result.to_csv(result_dir+'RQ2_'+proj_name+'_'+global_model_name+'_global_vs_local_synt_pred.csv',index=False)
-    # pred_df.to_csv(result_dir+'RQ2_'+proj_name+'_'+global_model_name+'_probability_distribution.csv',index=False)
+    all_eval_result.to_csv(result_dir+'RQ2_'+proj_name+'_'+global_model_name+'_global_vs_local_synt_pred.csv',index=False)
+    pred_df.to_csv(result_dir+'RQ2_'+proj_name+'_'+global_model_name+'_probability_distribution.csv',index=False)
     print('finished RQ2 of',proj_name)
     
 def show_rq2_eval_result():
@@ -470,29 +445,37 @@ def show_rq2_prob_distribution():
 
     pyexp_openstack_result = all_result[(all_result['project']=='openstack') & (all_result['technique']=='pyExplainer')]
     pyexp_qt_result = all_result[(all_result['project']=='qt') & (all_result['technique']=='pyExplainer')]
+    nh_openstack_result = all_result[(all_result['project']=='openstack') & (all_result['technique']=='mBase')]
+    nh_qt_result = all_result[(all_result['project']=='qt') & (all_result['technique']=='mBase')]
     lime_openstack_result = all_result[(all_result['project']=='openstack') & (all_result['technique']=='LIME')]
     lime_qt_result = all_result[(all_result['project']=='qt') & (all_result['technique']=='LIME')]
     
 #     qt_result = all_result[all_result['project']=='qt']
     
-    fig, axs = plt.subplots(2,2, figsize=(10,10))
+    fig, axs = plt.subplots(3,2, figsize=(10,10))
 
     axs[0,0].set_ylim([0, 1])
     axs[0,1].set_ylim([0, 1]) 
     axs[1,0].set_ylim([0, 1])
     axs[1,1].set_ylim([0, 1])
+    axs[2,0].set_ylim([0, 1])
+    axs[2,1].set_ylim([0, 1]) 
     
     sns.boxplot(data=pyexp_openstack_result, x='global_model', y='prob', hue='label' , ax=axs[0,0])
+    sns.boxplot(data=nh_openstack_result, x='global_model', y='prob', hue='label' , ax=axs[2,0])
     sns.boxplot(data=lime_openstack_result,  x='global_model', y='prob', hue='label' , ax=axs[1,0])
     sns.boxplot(data=pyexp_qt_result,  x='global_model', y='prob', hue='label' , ax=axs[0,1])
+    sns.boxplot(data=nh_qt_result,  x='global_model', y='prob', hue='label' , ax=axs[2,1])
     sns.boxplot(data=lime_qt_result,  x='global_model', y='prob', hue='label' , ax=axs[1,1], palette=['darkorange','royalblue'])
     
     axs[0,0].axhline(0.5, ls='--')
     axs[0,1].axhline(0.5, ls='--')
     axs[1,0].axhline(0.5, ls='--')
     axs[1,1].axhline(0.5, ls='--')
+    axs[2,0].axhline(0.5, ls='--')
+    axs[2,1].axhline(0.5, ls='--')
     
-    rows = ['PyExplainer', 'LIME']
+    rows = ['PyExplainer', 'LIME','NodeHarvest']
     cols = ['Openstack','Qt']
 
     plt.setp(axs.flat, xlabel='Technique', ylabel='Probability')
@@ -515,6 +498,28 @@ def show_rq2_prob_distribution():
     
     fig.savefig(fig_dir+'RQ2_prediction_prob.png')
     
+
+def get_rule_str_of_rulefit(local_model, X_explain):
+    rules = local_model.get_rules() # fetch the list of all the rules for this particular instance 
+    rules = rules[(rules['type']=='rule') & (rules['coef'] > 0) & (rules['importance'] > 0)]
+    rules_list = list(rules['rule'])
+    
+    rule_eval_result = []
+    
+    for r in rules_list:
+        py_exp_pred = eval_rule(r, X_explain)[0]
+        rule_eval_result.append(py_exp_pred)
+          
+    rules['is_satisfy_instance'] = rule_eval_result
+
+    rules = rules[rules['is_satisfy_instance']==True]
+
+    rules = rules.sort_values(by='importance', ascending=False)
+    
+    rule_str = rules.iloc[0]['rule']
+    
+    return rule_str
+
 def eval_rule(rule, x_df):
     var_in_rule = list(set(re.findall('[a-zA-Z]+', rule)))
     
@@ -546,7 +551,7 @@ def summarize_rule_eval_result(rule_str, x_df):
 
     return all_eval_result
 
-def rq3_eval(proj_name, global_model_name):
+def rq3_eval(proj_name, global_model_name, debug = False):
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
     x_test, y_test = prepare_data(proj_name, mode = 'test')
 
@@ -555,7 +560,11 @@ def rq3_eval(proj_name, global_model_name):
     pyexp_guidance_result_list = []
     lime_guidance_result_df = pd.DataFrame()
     
-    for i in range(0,len(feature_df)):
+    for i in tqdm(range(0,len(feature_df))):
+        if debug : 
+            if i > 1 : 
+                break 
+        
         X_explain = feature_df.iloc[[i]]
 
         row_index = str(X_explain.index[0])
@@ -563,14 +572,22 @@ def rq3_eval(proj_name, global_model_name):
         exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_'+row_index+'.pkl'),'rb'))
         py_exp = exp_obj['pyExplainer']
         lime_exp = exp_obj['LIME']
+        nh_exp = exp_obj['MBase']
 
         # load local models
         py_exp_local_model = py_exp['local_model']
         lime_exp_local_model = lime_exp['local_model']
+        nh_exp_local_model = nh_exp['local_model']
         
         # generate explanations                
         py_exp_the_best_defective_rule_str = get_rule_str_of_rulefit(py_exp_local_model, X_explain)
         lime_the_best_defective_rule_str = lime_exp['rule'].as_list()[0][0]
+
+        if debug :
+            print(i)
+            print(py_exp_the_best_defective_rule_str) 
+            print(lime_the_best_defective_rule_str)
+            break 
 
         # check whether explanations apply to the instance to be explained
         py_exp_pred = eval_rule(py_exp_the_best_defective_rule_str, X_explain)[0]
@@ -599,8 +616,11 @@ def rq3_eval(proj_name, global_model_name):
         lime_serie_test = pd.Series(data=[proj_name, row_index, 'LIME',global_model_name, lime_the_best_defective_rule_str, rule_rec])
         rq3_explanation_result = rq3_explanation_result.append(lime_serie_test,ignore_index=True)
             
-        print('finished {} from {} commits'.format(str(i+1),len(feature_df)))
+        # print('finished {} from {} commits'.format(str(i+1),len(feature_df)))
 
+    if debug : 
+        return 1
+    
     rq3_explanation_result.columns = ['project','commit_id','method','global_model','explanation','recall']
     rq3_explanation_result.to_csv(result_dir+'RQ3_'+proj_name+'_'+global_model_name+'_explanation_eval_split_rulefit_condition.csv',
                                   index=False)
@@ -663,7 +683,6 @@ def show_rq3_eval_result():
     
     fig.savefig(fig_dir+'RQ3.png')
 
-    
 def flip_rule(rule):
     rule = re.sub(r'\b=\b',' = ',rule) # for LIME
     found_rule = re.findall('.* <=? [a-zA-Z]+ <=? .*', rule) # for LIME
@@ -752,7 +771,6 @@ def get_combined_probs(X_input, global_model, input_guidance, input_SD):
         return []
     output_df.columns = ['guidance', 'probOg', 'probRevisedSD']
     return output_df
-
 
 def what_if_analysis(proj_name, global_model_name):
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)

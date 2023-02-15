@@ -268,6 +268,7 @@ class NodeHarvest:
             w_total += w
 
         proba = [ calculateProba(wz,wt) for (wz,wt) in zip (w_zero,w_total)] 
+        proba = np.asarray(proba)
         return proba 
 
     def regress(self, x, debug = False):
