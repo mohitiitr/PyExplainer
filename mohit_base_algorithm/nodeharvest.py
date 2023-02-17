@@ -222,8 +222,6 @@ class NodeHarvest:
         rules = pd.DataFrame(output_rules, columns=["rule","importance"])
         return rules
 
-
-
     def predict(self, x, debug = False):
         if debug : 
             print("calling predict")
@@ -300,7 +298,6 @@ class NodeHarvest:
     def get_featurecounts(self):
         return np.hstack([_tree_featurecount(tree) for tree in self.estimators_])
 
-
 def _solve_cvx(i, y, node_means, nu=0.001, delta=1e-5, w0_min=0.001, maxiter=100, verbose=False):
     """Compute node weights with relaxed constraints using cvxopt."""
     from cvxopt.solvers import qp, options
@@ -329,7 +326,6 @@ def _solve_cvx(i, y, node_means, nu=0.001, delta=1e-5, w0_min=0.001, maxiter=100
     result = qp(matrix(p), matrix(q), matrix(g), matrix(h))
     w = np.ravel(result['x'])
     return w
-
 
 def _solve_cvx2(i, y, node_means, nu=0.001, w0_min=0.001, maxiter=100, verbose=False):
     """Compute node weights with strict constraints using cvxopt."""
@@ -361,7 +357,6 @@ def _solve_cvx2(i, y, node_means, nu=0.001, w0_min=0.001, maxiter=100, verbose=F
     w[0] += 1
     return w
 
-
 def _solve_scipy(i, y, node_means, nu=0.001, delta=1e-5, w0_min=0.001, maxiter=100, verbose=False):
     """Compute node weights with relaxed constraints using scipy."""
     from scipy.optimize import minimize
@@ -392,7 +387,6 @@ def _solve_scipy(i, y, node_means, nu=0.001, delta=1e-5, w0_min=0.001, maxiter=1
                       constraints={'type': 'ineq', 'fun': constraint})
     w = result['x']
     return w
-
 
 def _solve_scipy2(i, y, node_means, nu=0.001, w0_min=0.001, maxiter=100, verbose=False):
     """Compute node weights with strict constraints using scipy."""
@@ -539,7 +533,7 @@ def _tree_featurecount(tree):
 
 def  _obtainRulesForEntireTreeFromBounds(bounds,f_names=None) : 
     def joinMk(strings):
-        return " and ".join(strings)
+        return " & ".join(strings)
     rulelists = [b.rules(f_names) for b in bounds ]
     rules = []
     for rlist in rulelists : 
