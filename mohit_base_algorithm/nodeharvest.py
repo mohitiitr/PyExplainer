@@ -581,7 +581,7 @@ class AABB:
                 continue
             string = n
             if l > -np.inf:
-                string = '%.2f' % l + ' < ' + string
+                string = string + ' > ' + '%.2f' % l
             if h < np.inf:
                 string = string + ' <= ' + '%.2f' % h
             rulestrings.append(string)

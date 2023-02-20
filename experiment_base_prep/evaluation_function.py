@@ -245,7 +245,7 @@ def show_rq1_eval_result():
 
 ###############################################################################
 def test_file_sync():
-    print("Version 6.2.0, synced file on 2023, 17 Feb, 12:56 pm")
+    print("Version 6.3.{}".format(datetime.now().strftime("%H:%M:%S")))
 
 ############################################################################### 
 def rq2_eval(proj_name, global_model_name, debug = False):
@@ -729,10 +729,11 @@ def show_rq3_eval_result():
     axs[0].set_title('Openstack')
     axs[1].set_title('Qt')
 
+    my_pal = {"pyExplainer": "y", "LIME": "b", "mBase":"g"}
     sns.boxplot(data=openstack_result, x='global_model', y='recall', 
-                hue='method', ax=axs[0],).set(xlabel='', ylabel='Consistency Percentage (%)')
+                hue='method', ax=axs[0],palette=my_pal).set(xlabel='', ylabel='Consistency Percentage (%)')
     sns.boxplot(data=qt_result, x='global_model', y='recall', 
-                hue='method', ax=axs[1],).set(xlabel='', ylabel='')
+                hue='method', ax=axs[1],palette=my_pal).set(xlabel='', ylabel='')
 
     plt.show()
     fig.savefig(fig_dir+'RQ3.png')
@@ -745,7 +746,7 @@ def show_rq3_eval_result():
     printRQ3Scores(qt_lr ,'qt', 'LR') 
     
 
-def flip_rule(rule):
+def flip_rule(rule,debug=False):
     rule = re.sub(r'\b=\b',' = ',rule) # for LIME
     found_rule = re.findall('.* <=? [a-zA-Z]+ <=? .*', rule) # for LIME
     ret = ''
@@ -772,7 +773,7 @@ def flip_rule(rule):
                 ret = ret + tok + ' '
     return ret
 
-def get_combined_probs(X_input, global_model, input_guidance, input_SD):
+def get_combined_probs(X_input, global_model, input_guidance, input_SD,debug=False):
 
     k_percent = 10
     prob_og = global_model.predict_proba(X_input)[0][1]
@@ -834,7 +835,7 @@ def get_combined_probs(X_input, global_model, input_guidance, input_SD):
     output_df.columns = ['guidance', 'probOg', 'probRevisedSD']
     return output_df
 
-def what_if_analysis(proj_name, global_model_name):
+def what_if_analysis(proj_name, global_model_name, debug = False):
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
 
     x_train, x_test, y_train, y_test = prepare_data(proj_name, mode = 'all')
@@ -847,9 +848,11 @@ def what_if_analysis(proj_name, global_model_name):
     
     all_df = pd.DataFrame()
 
-    for i in range(0,len(feature_df)):
-
+    for i in tqdm(range(0,len(feature_df))):
+        if debug and i>0 : 
+            break 
         tmp_df = pd.DataFrame()
+        tmp_df2 = pd.DataFrame()
 
         X_explain = feature_df.iloc[[i]]
 
@@ -858,29 +861,57 @@ def what_if_analysis(proj_name, global_model_name):
         exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_'+row_index+'.pkl'),'rb'))
         py_exp = exp_obj['pyExplainer']
         lime_exp = exp_obj['LIME']
+        nh_exp = exp_obj['MBase']
 
         # load local models
         py_exp_local_model = py_exp['local_model']
         lime_exp_local_model = lime_exp['local_model']
+        nh_exp_local_model = nh_exp['local_model']
 
         # generate explanations                
         py_exp_the_best_defective_rule_str = get_rule_str_of_rulefit(py_exp_local_model, X_explain)
         lime_the_best_defective_rule_str = lime_exp['rule'].as_list()[0][0]
+        nh_exp_the_best_defective_rule_str = get_rule_str_of_nodeharvest(nh_exp_local_model, X_explain)
 
+        
         # generate guidance
         pyFlip = flip_rule(py_exp_the_best_defective_rule_str)
+
+        # if debug : 
+        #     print("about to generate flip rule for nh")
+        nhFlip = flip_rule(nh_exp_the_best_defective_rule_str,debug)
+        # if debug : 
+        #     print("flip rule successfully generated ")
+
 
         tmp_df_i = get_combined_probs(X_explain, global_model, pyFlip, x_train_sd)
         if len(tmp_df_i) > 0:
             tmp_df_i['gtype'] = 'pyFlip'
             tmp_df = tmp_df.append(tmp_df_i)
+            tmp_df['commit_id'] = row_index
+            tmp_df['model'] = global_model_name
+            tmp_df['project'] = proj_name
+            all_df = all_df.append(tmp_df)
 
-        tmp_df['commit_id'] = row_index
-        tmp_df['model'] = global_model_name
-        tmp_df['project'] = proj_name
-        all_df = all_df.append(tmp_df)
+        if debug : 
+            print("about to generate combined probs for nh")
+
+        tmp_df_j = get_combined_probs(X_explain, global_model, nhFlip, x_train_sd, debug)
+
+        if debug : 
+            print("combined probs successfully generated ") 
+
+        if len(tmp_df_j) > 0:
+            tmp_df_j['gtype'] = 'nhFlip'
+            tmp_df2 = tmp_df2.append(tmp_df_j)
+            tmp_df2['commit_id'] = row_index
+            tmp_df2['model'] = global_model_name
+            tmp_df2['project'] = proj_name
+            all_df = all_df.append(tmp_df2)
         
-        print('finished {}/{} commits'.format(str(i+1), str(len(feature_df))))
+        if debug : 
+            print("df successfully generated ")
+        # print('finished {}/{} commits'.format(str(i+1), str(len(feature_df))))
 
     print('finished what-if of',proj_name)
     all_df.to_csv(result_dir+proj_name+'_'+global_model_name+'_combined_prob_from_guidance.csv',index=False)
@@ -911,6 +942,7 @@ def show_what_if_eval_result():
     all_result['prob_diff'] = (all_result['probOg']-all_result['probRevisedSD'])*100
 
     all_result_prob_change = all_result[all_result['prob_diff']>=0]
+    
 
     openstack_result_prob_change = all_result_prob_change[all_result_prob_change['project']=='openstack']
     qt_result_prob_change = all_result_prob_change[all_result_prob_change['project']=='qt']
@@ -922,20 +954,39 @@ def show_what_if_eval_result():
     qt_lr = df_list[2][1]
     qt_rf = df_list[3][1]
 
-    openstack_rf_reverse_percent = np.mean(list(openstack_rf['isFlip']))*100
-    openstack_lr_reverse_percent = np.mean(list(openstack_lr['isFlip']))*100
-    qt_rf_reverse_percent = np.mean(list(qt_rf['isFlip']))*100
-    qt_lr_reverse_percent = np.mean(list(qt_lr['isFlip']))*100
+    openstack_lr_py = openstack_lr[openstack_lr['gtype'] == 'pyFlip']
+    openstack_rf_py = openstack_rf[openstack_rf['gtype'] == 'pyFlip']
+    openstack_lr_nh = openstack_lr[openstack_lr['gtype'] == 'nhFlip']
+    openstack_rf_nh = openstack_rf[openstack_rf['gtype'] == 'nhFlip']
+
+    qt_rf_py = qt_rf[qt_rf['gtype'] == 'pyFlip']
+    qt_lr_py = qt_lr[qt_lr['gtype'] == 'pyFlip']
+    qt_rf_nh = qt_rf[qt_rf['gtype'] == 'nhFlip']
+    qt_lr_nh = qt_lr[qt_lr['gtype'] == 'nhFlip']
+
+    openstack_rf_reverse_percent_py = np.mean(list(openstack_rf_py['isFlip']))*100
+    openstack_lr_reverse_percent_py = np.mean(list(openstack_lr_py['isFlip']))*100
+    qt_rf_reverse_percent_py = np.mean(list(qt_rf_py['isFlip']))*100
+    qt_lr_reverse_percent_py = np.mean(list(qt_lr_py['isFlip']))*100
+
+    openstack_rf_reverse_percent_nh = np.mean(list(openstack_rf_nh['isFlip']))*100
+    openstack_lr_reverse_percent_nh = np.mean(list(openstack_lr_nh['isFlip']))*100
+    qt_rf_reverse_percent_nh = np.mean(list(qt_rf_nh['isFlip']))*100
+    qt_lr_reverse_percent_nh = np.mean(list(qt_lr_nh['isFlip']))*100
 
     openstack_reverse_percent_df = pd.DataFrame()
-    openstack_reverse_percent_df = openstack_reverse_percent_df.append(pd.Series(['RF', openstack_rf_reverse_percent]), ignore_index=True)
-    openstack_reverse_percent_df = openstack_reverse_percent_df.append(pd.Series(['LR', openstack_lr_reverse_percent]), ignore_index=True)
-    openstack_reverse_percent_df.columns = ['model','% reverse']
+    openstack_reverse_percent_df = openstack_reverse_percent_df.append(pd.Series(['RF', 'pyExplainer' , openstack_rf_reverse_percent_py]), ignore_index=True)
+    openstack_reverse_percent_df = openstack_reverse_percent_df.append(pd.Series(['LR', 'pyExplainer' , openstack_lr_reverse_percent_py]), ignore_index=True)
+    openstack_reverse_percent_df = openstack_reverse_percent_df.append(pd.Series(['RF', 'mBase', openstack_rf_reverse_percent_nh]), ignore_index=True)
+    openstack_reverse_percent_df = openstack_reverse_percent_df.append(pd.Series(['LR', 'mBase', openstack_lr_reverse_percent_nh]), ignore_index=True)
+    openstack_reverse_percent_df.columns = ['model','method', '% reverse']
 
     qt_reverse_percent_df = pd.DataFrame()
-    qt_reverse_percent_df = qt_reverse_percent_df.append(pd.Series(['RF', qt_rf_reverse_percent]), ignore_index=True)
-    qt_reverse_percent_df = qt_reverse_percent_df.append(pd.Series(['LR', qt_lr_reverse_percent]), ignore_index=True)
-    qt_reverse_percent_df.columns = ['model','% reverse']
+    qt_reverse_percent_df = qt_reverse_percent_df.append(pd.Series(['RF', 'pyExplainer' ,  qt_rf_reverse_percent_py]), ignore_index=True)
+    qt_reverse_percent_df = qt_reverse_percent_df.append(pd.Series(['LR', 'pyExplainer' , qt_lr_reverse_percent_py]), ignore_index=True)
+    qt_reverse_percent_df = qt_reverse_percent_df.append(pd.Series(['RF', 'mBase',  qt_rf_reverse_percent_nh]), ignore_index=True)
+    qt_reverse_percent_df = qt_reverse_percent_df.append(pd.Series(['LR', 'mBase',  qt_lr_reverse_percent_nh]), ignore_index=True)
+    qt_reverse_percent_df.columns = ['model','method','% reverse']
 
     # plot probability difference
     plt.figure()
@@ -949,8 +1000,8 @@ def show_what_if_eval_result():
     axs[0].set_title('openstack')
     axs[1].set_title('qt')
 
-    sns.boxplot(x='model',y='prob_diff', data=openstack_result_prob_change, ax=axs[0])
-    sns.boxplot(x='model',y='prob_diff', data=qt_result_prob_change, ax=axs[1])
+    sns.boxplot(x='model',y='prob_diff', data=openstack_result_prob_change, hue='gtype', ax=axs[0])
+    sns.boxplot(x='model',y='prob_diff', data=qt_result_prob_change, hue='gtype', ax=axs[1])
 
     plt.show()
 
@@ -969,8 +1020,8 @@ def show_what_if_eval_result():
     axs[0].set_title('openstack')
     axs[1].set_title('qt')
 
-    sns.barplot(x='model',y='% reverse', data=openstack_reverse_percent_df, ax=axs[0])
-    sns.barplot(x='model',y='% reverse', data=qt_reverse_percent_df, ax=axs[1])
+    sns.barplot(x='model',y='% reverse', data=openstack_reverse_percent_df, hue='method', ax=axs[0])
+    sns.barplot(x='model',y='% reverse', data=qt_reverse_percent_df, hue='method', ax=axs[1])
 
     for index, row in openstack_reverse_percent_df.iterrows():
         axs[0].text(row.name,row['% reverse'], round(row['% reverse'],2), color='black', ha="center")
