@@ -130,6 +130,7 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
         mBase_obj['local_model'] = mBase_obj['local_node_harvest_model']
         del mBase_obj['local_node_harvest_model']
 
+        '''
         # # Commenting the Part with PyExplainer, 
         # #################################
         # print("\t starting pyexplainer")
@@ -160,7 +161,8 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
         # lime_obj['commit_id'] = row_index
         # print("\t done lime")
         # #################################
-
+        '''
+        
         # load already trained file, from previous executions. 
         all_explainer = pickle.load(open(save_dir+'/all_explainer_'+row_index+'.pkl','rb'))
 

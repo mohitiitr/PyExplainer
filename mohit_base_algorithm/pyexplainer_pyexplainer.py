@@ -15,6 +15,8 @@ from IPython.core.display import display, HTML
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import check_random_state, all_estimators
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import GridSearchCV
 
 # change the line below to include my algorithm
 from .rulefit import RuleFit
@@ -138,18 +140,14 @@ def AutoSpearman(X_train, correlation_threshold=0.7, correlation_method='spearma
     X_train = X_train.loc[:, selected]
     return X_train
 
-
 def get_base_prefix_compat():
     """Get base/real prefix, or sys.prefix if there is none."""
     return getattr(sys, "base_prefix", None) or getattr(sys, "real_prefix", None) or sys.prefix
 
-
 def in_virtualenv():
     return get_base_prefix_compat() != sys.prefix
 
-
 INSIDE_VIRTUAL_ENV = in_virtualenv()
-
 
 def data_validation(data):
     """Validate that the given data format is a list of dictionary.
@@ -175,7 +173,6 @@ def data_validation(data):
     else:
         valid = False
     return valid
-
 
 def filter_rules(rules, X_explain):
     """Get rules that are actually applied to the commit
@@ -237,7 +234,6 @@ def filter_rules(rules, X_explain):
     sorted_rules = rules.sort_values(by='importance', ascending=False)
     return sorted_rules
 
-
 def get_dflt():
     """Obtain the default data and model
 
@@ -277,7 +273,6 @@ def get_dflt():
             'y_explain': explained_instance['y_explain'],
             'full_ft_names': full_ft_names}
 
-
 def id_generator(size=15, random_state=check_random_state(None)):
     """Generate unique ids for div tag which will contain the visualisation stuff from d3.
 
@@ -301,7 +296,6 @@ def id_generator(size=15, random_state=check_random_state(None)):
         random_state = check_random_state(None)
     chars = list(string.ascii_uppercase + string.digits)
     return ''.join(random_state.choice(chars, size, replace=True))
-
 
 def to_js_data(list_of_dict):
     """Transform python list to a str to be used inside the html <script><script/>
@@ -552,7 +546,7 @@ class MohitBase:
             print('nDefect=', n_defect_class,
                   'from', len(synthetic_predictions))
 
-
+        '''
         # # Authors Native Code commented. 
         # # Step 3 - Build a RuleFit local model with synthetic instances
         # # indep_index = [list(synthetic_instances.columns).index(i) for i in self.indep]
@@ -595,18 +589,32 @@ class MohitBase:
         #             'top_k_negative_rules': top_k_negative_rules,
         #             'local_rulefit_model': local_rulefit_model}
         # return rule_obj
-
+        '''
 
         #################### My Base Algorithm Being trained. ##########################
         # Step 3 - Build a NodeHarvest local model with synthetic instances
 
         # indep_index = [list(synthetic_instances.columns).index(i) for i in self.indep]
         
-        local_random_forest = RandomForestRegressor(n_estimators=100, max_leaf_nodes=6)
+        # local_random_forest = RandomForestRegressor(n_estimators=100, max_leaf_nodes=6)
+        local_random_forest = RandomForestClassifier(n_estimators=100, max_leaf_nodes=6)
+        # local_random_forest = RandomForestClassifier()
+
+
+        forest_params = [ 
+            {
+             'n_estimators' : [100, 130, 150] , 
+              'max_depth' : [3,4] , 
+
+            }
+        ]
+
+        # clf = GridSearchCV(local_random_forest, )
+
         local_random_forest.fit(synthetic_instances.values,synthetic_predictions)
         if debug : 
             print("local random forest fit completed")
-        local_node_harvest = NodeHarvest(max_nodecount=2500, solver='cvx_robust')
+        local_node_harvest = NodeHarvest(max_nodecount=5000, solver='cvx_robust')
         local_node_harvest.fit(forest = local_random_forest, 
                                x = synthetic_instances.values,
                                y = synthetic_predictions,
@@ -615,7 +623,8 @@ class MohitBase:
         if debug : 
             print("local node harvest fit completed")
 
-        # local_rulefit_model = RuleFit(rfmode='classify',
+        '''
+        local_rulefit_model = RuleFit(rfmode='classify',
         #                               exp_rand_tree_size=False,
         #                               random_state=0,
         #                               max_rules=max_rules,
@@ -661,6 +670,7 @@ class MohitBase:
         #             'top_k_negative_rules': top_k_negative_rules,
         #             'local_rulefit_model': local_rulefit_model}
         # return rule_obj
+        '''
 
         ## Step 4 Modified for My Mohit Base NodeHarvest
         lnh_rules = local_node_harvest.get_rules()
@@ -919,13 +929,18 @@ class MohitBase:
             print(list(X_train_i), "columns")
         cases_normalize = X_explain.copy()
 
+
         train_objs_num = len(trainset_normalize)
+
         dataset = pd.concat(objs=[trainset_normalize, cases_normalize], axis=0)
         if debug:
             print(self.indep, "continuous")
             print(type(self.indep))
+
+
         dataset[self.indep] = scaler.fit_transform(dataset[self.indep])
         # dataset = pd.get_dummies(dataset, prefix_sep="__", columns=self.__categorical_vars)
+
         trainset_normalize = copy.copy(dataset[:train_objs_num])
         cases_normalize = copy.copy(dataset[train_objs_num:])
 
@@ -933,15 +948,18 @@ class MohitBase:
         dist_df = pd.DataFrame(index=trainset_normalize.index.copy())
 
         width = math.sqrt(len(X_train_i.columns)) * 0.75
+
         # similarity
         for count, case in cases_normalize.iterrows():
             # Calculate the euclidean distance from the instance to be explained
             dist = np.linalg.norm(
                 trainset_normalize.sub(np.array(case)), axis=1)
+            
             # Convert distance to a similarity score
             similarity = np.exp(-(dist ** 2) / (2 * (width ** 2)))
             dist_df['dist'] = similarity
             dist_df['t_target'] = target_train
+            
             # get the unique classes of the training set
             unique_classes = dist_df.t_target.unique()
             # Sort similarity scores in to descending order
