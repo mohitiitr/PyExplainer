@@ -731,9 +731,9 @@ def show_rq3_eval_result():
 
     my_pal = {"pyExplainer": "y", "LIME": "b", "mBase":"g"}
     sns.boxplot(data=openstack_result, x='global_model', y='recall', 
-                hue='method', ax=axs[0],palette=my_pal).set(xlabel='', ylabel='Consistency Percentage (%)')
+                hue='method', ax=axs[0]).set(xlabel='', ylabel='Consistency Percentage (%)')
     sns.boxplot(data=qt_result, x='global_model', y='recall', 
-                hue='method', ax=axs[1],palette=my_pal).set(xlabel='', ylabel='')
+                hue='method', ax=axs[1]).set(xlabel='', ylabel='')
 
     plt.show()
     fig.savefig(fig_dir+'RQ3.png')

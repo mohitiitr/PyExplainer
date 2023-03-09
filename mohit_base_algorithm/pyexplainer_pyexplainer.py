@@ -597,23 +597,34 @@ class MohitBase:
         # indep_index = [list(synthetic_instances.columns).index(i) for i in self.indep]
         
         # local_random_forest = RandomForestRegressor(n_estimators=100, max_leaf_nodes=6)
-        local_random_forest = RandomForestClassifier(n_estimators=100, max_leaf_nodes=6)
-        # local_random_forest = RandomForestClassifier()
+        # local_random_forest = RandomForestClassifier(n_estimators=100, max_leaf_nodes=6)
+        local_random_forest = RandomForestClassifier()
 
 
-        forest_params = [ 
-            {
-             'n_estimators' : [100, 130, 150] , 
-              'max_depth' : [3,4] , 
-
+        param_grid = { 'n_estimators' : [100, 130, 150] , 
+                        'max_depth' : [3,4] , 
+                        'max_samples' : [0.5,0.75,1.0]
             }
-        ]
 
         # clf = GridSearchCV(local_random_forest, )
+        rf_grid = GridSearchCV(estimator = local_random_forest, 
+                       param_grid = param_grid, 
+                       cv = 5, 
+                       verbose=2, 
+                       n_jobs = -1)
+        
+        rf_grid.fit(synthetic_instances.values,synthetic_predictions)
 
+        n_estimators = rf_grid.best_params_['n_estimators']
+        max_depth = rf_grid.best_params_['max_depth']
+        max_samples = rf_grid.best_params_['max_samples']
+
+        local_random_forest = RandomForestClassifier(n_estimators=n_estimators,max_depth = max_depth,max_samples = max_samples )
         local_random_forest.fit(synthetic_instances.values,synthetic_predictions)
+
         if debug : 
             print("local random forest fit completed")
+
         local_node_harvest = NodeHarvest(max_nodecount=5000, solver='cvx_robust')
         local_node_harvest.fit(forest = local_random_forest, 
                                x = synthetic_instances.values,
