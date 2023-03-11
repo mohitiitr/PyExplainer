@@ -1,0 +1,48 @@
+project: OpenStack, JIT model: RF, Agnostic: LIME
+% unique explanation is 3.54
+% duplicate explanation is 86
+--------------------------------------------------
+project: OpenStack, JIT model: RF, Agnostic: pyExplainer
+% unique explanation is 79.07
+% duplicate explanation is 4
+--------------------------------------------------
+project: OpenStack, JIT model: RF, Agnostic: NodeHarvest
+% unique explanation is 48.67
+% duplicate explanation is 11
+--------------------------------------------------
+project: OpenStack, JIT model: LR, Agnostic: LIME
+% unique explanation is 1.84
+% duplicate explanation is 71
+--------------------------------------------------
+project: OpenStack, JIT model: LR, Agnostic: pyExplainer
+% unique explanation is 97.53
+% duplicate explanation is 0
+--------------------------------------------------
+project: OpenStack, JIT model: LR, Agnostic: NodeHarvest
+% unique explanation is 88.82
+% duplicate explanation is 1
+--------------------------------------------------
+project: qt, JIT model: RF, Agnostic: LIME
+% unique explanation is 29.11
+% duplicate explanation is 48
+--------------------------------------------------
+project: qt, JIT model: RF, Agnostic: pyExplainer
+% unique explanation is 82.49
+% duplicate explanation is 4
+--------------------------------------------------
+project: qt, JIT model: RF, Agnostic: NodeHarvest
+% unique explanation is 58.6
+% duplicate explanation is 7
+--------------------------------------------------
+project: qt, JIT model: LR, Agnostic: LIME
+% unique explanation is 2.75
+% duplicate explanation is 74
+--------------------------------------------------
+project: qt, JIT model: LR, Agnostic: pyExplainer
+% unique explanation is 98.69
+% duplicate explanation is 0
+--------------------------------------------------
+project: qt, JIT model: LR, Agnostic: NodeHarvest
+% unique explanation is 96.01
+% duplicate explanation is 0
+--------------------------------------------------
