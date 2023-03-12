@@ -317,6 +317,8 @@ def to_js_data(list_of_dict):
         return '[{}];'
 
 
+
+
 class MohitBase:
     """A PyExplainer object is able to load training data and an ML model to generate human-centric explanation and
     visualisation
@@ -607,11 +609,12 @@ class MohitBase:
             }
 
         # clf = GridSearchCV(local_random_forest, )
+        # adding verbose = 2 will give details of code, else not.
         rf_grid = GridSearchCV(estimator = local_random_forest, 
                        param_grid = param_grid, 
                        cv = 5, 
-                       verbose=2, 
                        n_jobs = -1)
+
         
         rf_grid.fit(synthetic_instances.values,synthetic_predictions)
 
@@ -619,7 +622,7 @@ class MohitBase:
         max_depth = rf_grid.best_params_['max_depth']
         max_samples = rf_grid.best_params_['max_samples']
 
-        local_random_forest = RandomForestClassifier(n_estimators=n_estimators,max_depth = max_depth,max_samples = max_samples )
+        local_random_forest = RandomForestClassifier(n_estimators=n_estimators,max_depth = max_depth,max_samples = max_samples,n_jobs = -1 )
         local_random_forest.fit(synthetic_instances.values,synthetic_predictions)
 
         if debug : 
