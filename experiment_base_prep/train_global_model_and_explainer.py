@@ -119,6 +119,8 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
         # print("\t starting Mohit-base")
         mBase_obj = mBase.explain(X_explain,
                                    y_explain,
+                                   modelType = "nc", 
+                                   cv = 5,
                                    search_function = 'CrossoverInterpolation',debug=False)
         # print("\t done Mohit-base")
 
@@ -173,6 +175,8 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
         pickle.dump(all_explainer, open(save_dir+'/all_explainer_'+row_index+'.pkl','wb'))
         
         # print('finished {}/{} commits'.format(str(i+1), str(len(feature_df))))
+
+    MohitBase.logBestParams()
 
 def train_global_model_runner(proj_name, global_model_name):
     x_train, x_test, y_train, y_test = prepare_data(proj_name, mode = 'all')

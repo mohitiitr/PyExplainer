@@ -412,6 +412,7 @@ class MohitBase:
         self.bullet_output = widgets.Output(layout={'border': '3px solid black'})
         self.hbox_items = []
         self.X_explain = None
+        self.best_params = []
         self.y_explain = None
 
     def auto_spearman(self,
@@ -454,6 +455,7 @@ class MohitBase:
                 max_rules=2000,
                 max_iter=10000,
                 cv=5,
+                modelType = "nc", 
                 search_function='CrossoverInterpolation',
                 debug=False):
         """Generate Rule Object Manually by passing X_explain and y_explain
@@ -597,45 +599,70 @@ class MohitBase:
         # Step 3 - Build a NodeHarvest local model with synthetic instances
 
         # indep_index = [list(synthetic_instances.columns).index(i) for i in self.indep]
-        
-        # local_random_forest = RandomForestRegressor(n_estimators=100, max_leaf_nodes=6)
-        # local_random_forest = RandomForestClassifier(n_estimators=100, max_leaf_nodes=6)
-        local_random_forest = RandomForestClassifier()
 
+        modelType = modelType.lower()
+        if modelType == "nr" : 
+            local_random_forest = RandomForestRegressor(n_estimators=100, max_leaf_nodes=6)
+            local_random_forest.fit(synthetic_instances.values,synthetic_predictions)
+            if debug : 
+                print("local random forest fit completed")
+        elif modelType == "nc" : 
+            if cv < 0 : # use pretrained model
+                local_random_forest = RandomForestClassifier(n_estimators=100,max_samples =1.0, max_leaf_nodes=6)
+                local_random_forest.fit(synthetic_instances.values,synthetic_predictions)
 
-        param_grid = { 'n_estimators' : [100, 130, 150] , 
-                        'max_depth' : [3,4] , 
-                        'max_samples' : [0.5,0.75,1.0]
-            }
+            elif cv < 2 : # use basic model with minimal estimation
+                local_random_forest = RandomForestClassifier(n_estimators=100, max_leaf_nodes=6)
+                local_random_forest.fit(synthetic_instances.values,synthetic_predictions)
 
-        # clf = GridSearchCV(local_random_forest, )
-        # adding verbose = 2 will give details of code, else not.
-        rf_grid = GridSearchCV(estimator = local_random_forest, 
+            else : #train custom model 
+                local_random_forest = RandomForestClassifier(max_leaf_nodes=6)
+                param_grid = { 'n_estimators' : [100, 130, 150] , 
+                                'max_samples' : [0.5,0.75,1.0]
+                        }
+                rf_grid = GridSearchCV(estimator = local_random_forest, 
                        param_grid = param_grid, 
-                       cv = 5, 
+                       cv = cv, 
                        n_jobs = -1)
+                rf_grid.fit(synthetic_instances.values,synthetic_predictions)
 
+                n_estimators = rf_grid.best_params_['n_estimators']
+                max_samples = rf_grid.best_params_['max_samples']
+                self.best_params = self.best_params.append((n_estimators,max_samples))
+
+                local_random_forest = RandomForestClassifier(n_estimators=n_estimators,max_samples = max_samples, max_leaf_nodes=6, n_jobs = -1 )
+                local_random_forest.fit(synthetic_instances.values,synthetic_predictions)
+
+            if debug : 
+                print("local random forest fit completed")
+
+        elif modelType == "py" : 
+            local_rulefit_model = RuleFit(rfmode='classify',
+                                    exp_rand_tree_size=False,
+                                    random_state=0,
+                                    max_rules=max_rules,
+                                    cv=cv,
+                                    max_iter=max_iter,
+                                    n_jobs=-1)
+            local_rulefit_model.fit(synthetic_instances.values,
+                                synthetic_predictions,
+                                feature_names=self.indep)
+            if debug : 
+                print("local rulefit fit completed")
+        else : 
+            print("modelType should be either NC (Node-Harvest classifier) or NR (Nodeharvest-Regressor) or PY (PyExplainer)")
+            raise ValueError
         
-        rf_grid.fit(synthetic_instances.values,synthetic_predictions)
-
-        n_estimators = rf_grid.best_params_['n_estimators']
-        max_depth = rf_grid.best_params_['max_depth']
-        max_samples = rf_grid.best_params_['max_samples']
-
-        local_random_forest = RandomForestClassifier(n_estimators=n_estimators,max_depth = max_depth,max_samples = max_samples,n_jobs = -1 )
-        local_random_forest.fit(synthetic_instances.values,synthetic_predictions)
-
-        if debug : 
-            print("local random forest fit completed")
-
-        local_node_harvest = NodeHarvest(max_nodecount=5000, solver='cvx_robust')
-        local_node_harvest.fit(forest = local_random_forest, 
-                               x = synthetic_instances.values,
-                               y = synthetic_predictions,
-                               feature_names=self.indep,
-                               debug = debug)
-        if debug : 
-            print("local node harvest fit completed")
+            
+        if modelType != "py" : 
+            local_node_harvest = NodeHarvest(max_nodecount=5000, solver='cvx_robust')
+            local_node_harvest.fit(forest = local_random_forest, 
+                                x = synthetic_instances.values,
+                                y = synthetic_predictions,
+                                feature_names=self.indep,
+                                debug = debug)
+            if debug : 
+                print("local node harvest fit completed")
 
         '''
         local_rulefit_model = RuleFit(rfmode='classify',
@@ -648,7 +675,9 @@ class MohitBase:
         # local_rulefit_model.fit(synthetic_instances.values,
         #                         synthetic_predictions,
         #                         feature_names=self.indep)
-
+        '''
+        ## Part 4 comments
+        '''
         # Todo 
         # AUTHORS have passed paramter name during their training, which is obvious, I have to train Nodehrvest with that only. 
         # and then i have to understand how to obtain results from Nodeharvest 
@@ -658,34 +687,37 @@ class MohitBase:
         # 4. integrate feature names with node harvest
         # 5. supply rules needed in pyexplainer from nodeharvest 
 
-        # # Step 4 Get rules from theRuleFit local model
-        # rules = local_rulefit_model.get_rules()
-        # rules = rules[rules.coef != 0].sort_values("importance", ascending=False)
-        # rules = rules[rules.type == 'rule'].sort_values("importance", ascending=False)
-        # positive_filtered_rules = filter_rules(rules, X_explain)
 
-        # # positive rules
-        # top_k_positive_rules = positive_filtered_rules.loc[positive_filtered_rules['coef'] > 0].sort_values(
-        #     "importance", ascending=False).head(top_k)
-        # top_k_positive_rules['Class'] = self.class_label[1]
-        # top_k_positive_rules = positive_filtered_rules.reset_index()
-
-        # # negative rules
-        # top_k_negative_rules = rules.loc[rules['coef'] < 0].sort_values("importance", ascending=False).head(top_k)
-        # top_k_negative_rules['Class'] = self.class_label[0]
-
-        # rule_obj = {'synthetic_data': synthetic_instances,
-        #             'synthetic_predictions': synthetic_predictions,
-        #             'X_explain': X_explain,
-        #             'y_explain': y_explain,
-        #             'indep': self.indep,
-        #             'dep': self.dep,
-        #             'top_k_positive_rules': top_k_positive_rules,
-        #             'top_k_negative_rules': top_k_negative_rules,
-        #             'local_rulefit_model': local_rulefit_model}
-        # return rule_obj
         '''
 
+        if modelType == "py" : 
+            # Step 4 Get rules from theRuleFit local model
+            rules = local_rulefit_model.get_rules()
+            rules = rules[rules.coef != 0].sort_values("importance", ascending=False)
+            rules = rules[rules.type == 'rule'].sort_values("importance", ascending=False)
+            positive_filtered_rules = filter_rules(rules, X_explain)
+
+            # positive rules
+            top_k_positive_rules = positive_filtered_rules.loc[positive_filtered_rules['coef'] > 0].sort_values(
+                "importance", ascending=False).head(top_k)
+            top_k_positive_rules['Class'] = self.class_label[1]
+            top_k_positive_rules = positive_filtered_rules.reset_index()
+
+            # negative rules
+            top_k_negative_rules = rules.loc[rules['coef'] < 0].sort_values("importance", ascending=False).head(top_k)
+            top_k_negative_rules['Class'] = self.class_label[0]
+
+            rule_obj = {'synthetic_data': synthetic_instances,
+                        'synthetic_predictions': synthetic_predictions,
+                        'X_explain': X_explain,
+                        'y_explain': y_explain,
+                        'indep': self.indep,
+                        'dep': self.dep,
+                        'top_k_positive_rules': top_k_positive_rules,
+                        'top_k_negative_rules': top_k_negative_rules,
+                        'local_rulefit_model': local_rulefit_model}
+            return rule_obj
+        
         ## Step 4 Modified for My Mohit Base NodeHarvest
         lnh_rules = local_node_harvest.get_rules()
         lnh_rules = lnh_rules.sort_values("importance", ascending=False)
@@ -701,7 +733,21 @@ class MohitBase:
                     'local_node_harvest_model': local_node_harvest}
         return rule_obj
 
-       
+
+    def logBestParams(self) : 
+        if len(self.best_params) == 0 : 
+            print("Please train custom model before execution of this function")
+            return
+
+        estimators = {100 : 0, 130 : 0, 150 : 0}
+        samples = {0.5 : 0, 0.75 : 0, 1.0 : 0}
+        for tup in self.best_params : 
+            estimators[tup[0]] += 1
+            samples[tup[1]] += 1
+        
+        print(estimators)
+        print(samples)
+
 
     def generate_bullet_data(self, parsed_rule_object):
         """Generate bullet chart data (a list of dict) to be implemented with d3.js chart.
