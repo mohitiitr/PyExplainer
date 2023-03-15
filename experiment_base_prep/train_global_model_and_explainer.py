@@ -176,7 +176,7 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
         
         # print('finished {}/{} commits'.format(str(i+1), str(len(feature_df))))
 
-    MohitBase.logBestParams()
+    mBase.logBestParams()
 
 def train_global_model_runner(proj_name, global_model_name):
     x_train, x_test, y_train, y_test = prepare_data(proj_name, mode = 'all')

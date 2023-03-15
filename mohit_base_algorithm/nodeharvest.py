@@ -139,7 +139,7 @@ class NodeHarvest:
     """
 
     
-    def __init__(self, max_nodecount=None, max_interaction=None, solver='cvx_robust', tolerance=1e-5,
+    def __init__(self, max_nodecount=None, max_interaction=None, solver='cvx_robust', tolerance=1e-5, mode = "c",
                  **kwargs):
         self.w_root = None
         self.solver_args = kwargs

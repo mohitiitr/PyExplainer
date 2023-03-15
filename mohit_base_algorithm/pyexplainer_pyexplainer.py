@@ -628,7 +628,7 @@ class MohitBase:
 
                 n_estimators = rf_grid.best_params_['n_estimators']
                 max_samples = rf_grid.best_params_['max_samples']
-                self.best_params = self.best_params.append((n_estimators,max_samples))
+                self.best_params.append((n_estimators,max_samples))
 
                 local_random_forest = RandomForestClassifier(n_estimators=n_estimators,max_samples = max_samples, max_leaf_nodes=6, n_jobs = -1 )
                 local_random_forest.fit(synthetic_instances.values,synthetic_predictions)
@@ -1018,12 +1018,16 @@ class MohitBase:
             # Convert distance to a similarity score
             similarity = np.exp(-(dist ** 2) / (2 * (width ** 2)))
             dist_df['dist'] = similarity
+
+            # set target value to map to
             dist_df['t_target'] = target_train
             
             # get the unique classes of the training set
             unique_classes = dist_df.t_target.unique()
+
             # Sort similarity scores in to descending order
             dist_df.sort_values(by=['dist'], ascending=False, inplace=True)
+
             # dist_df.reset_index(inplace=True)
 
             # Make a dataframe with top 40 elements in each class
@@ -1037,8 +1041,10 @@ class MohitBase:
 
             # Get the location for the given index with the minimum similarity
             min_loc = dist_df.index.get_loc(cutoff_similarity)
+
             # whole neighbourhood without undersampling the majority class
             train_neigh_sampling_b = dist_df.iloc[0:min_loc + 1]
+
             # get the size of neighbourhood for each class
             target_details = train_neigh_sampling_b.groupby(['t_target']).size()
             if debug:
@@ -1057,13 +1063,16 @@ class MohitBase:
                     filterd_class_set = train_neigh_sampling_b \
                         .loc[train_neigh_sampling_b['t_target'] == row['target']]
                     final_neighbours_similarity_df = final_neighbours_similarity_df.append(filterd_class_set)
+            
             if debug:
                 print(final_neighbours_similarity_df,
                       "final_neighbours_similarity_df")
+                
             # Get the original training set instances which is equal to the index of the selected neighbours
             train_set_neigh = X_train_i[X_train_i.index.isin(final_neighbours_similarity_df.index)]
             if debug:
                 print(train_set_neigh, "train set neigh")
+
             train_class_neigh = y_explain[y_explain.index.isin(final_neighbours_similarity_df.index)]
             # train_neigh_df = train_set_neigh.join(train_class_neigh)
             # class_neigh = train_class_neigh.groupby([self.dep]).size()
@@ -1077,6 +1086,7 @@ class MohitBase:
                 rand_rows = train_set_neigh.sample(2)
                 sample_indexes_list = sample_indexes_list + rand_rows.index.values.tolist()
                 # similarity_both = dist_df[dist_df.index.isin(rand_rows.index)]
+
                 sample_classes = train_class_neigh[train_class_neigh.index.isin(
                     rand_rows.index)]
                 sample_classes = np.array(
@@ -1109,10 +1119,12 @@ class MohitBase:
             # Generating instances using the mutation technique
             for num in range(1000, 2000):
                 rand_rows = train_set_neigh.sample(3)
+
                 sample_indexes_list = sample_indexes_list + rand_rows.index.values.tolist()
                 sample_classes = train_class_neigh[train_class_neigh.index.isin(rand_rows.index)]
                 sample_classes = np.array(sample_classes.to_records().view(type=np.matrix))
                 sample_classes_arr.append(sample_classes[0].tolist())
+                
                 mu_f = np.random.uniform(low=0.5, high=1.0)
                 x = rand_rows.iloc[0]
                 y = rand_rows.iloc[1]
