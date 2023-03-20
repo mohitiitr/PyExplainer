@@ -25,8 +25,8 @@ from .nodeharvest import NodeHarvest
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.tools.tools import add_constant
 import pickle
-# from sdv.single_table import CTGANSynthesizer
-# from sdv.metadata import SingleTableMetadata
+from sdv.single_table import CTGANSynthesizer
+from sdv.metadata import SingleTableMetadata
 
 
 
@@ -477,8 +477,10 @@ class MohitBase:
             Maximum number of iteration to be tuned in to the local RuleFit model
         cv : :obj:`int`, default is 5
             Cross Validation to be tuned in to the local RuleFit model
+        modelType : obj:`str`, default is "nc" 
+            Name of the explainer to be used for training, potential values : 'nc' , 'nr', 'py'
         search_function : :obj:`str`, default is 'crossoverinterpolation'
-            Name of the search function to be used to generate the instance used by RuleFit.fit()
+            Name of the search function to be used to generate the instance used by Nodeharvest.fit(), potential options, 'crossoverinterpolation' , 'ctgan' , 'randompeerturbation' 
         debug : :obj:`bool`, default is False
             True for debugging mode, False otherwise.
 
@@ -531,7 +533,9 @@ class MohitBase:
         elif search_function.lower() == 'randomperturbation':
             # This random perturbation approach to generate instances is used by LIME to gerate synthetic instances
             synthetic_object = self.generate_instance_random_perturbation(X_explain=X_explain, debug=debug)
-
+        elif search_function.lower() == 'ctgan' : 
+            # advanced approach to create random instances for neighbourhood
+            synthetic_object = self.generate_instance_gan(X_explain=X_explain, debug=debug)
 
         # Step 2 - Generate predictions of synthetic instances using the global model
         synthetic_instances = synthetic_object['synthetic_data'].loc[:, self.indep]
@@ -608,7 +612,7 @@ class MohitBase:
             local_random_forest = RandomForestRegressor(n_estimators=100, max_leaf_nodes=6)
             local_random_forest.fit(synthetic_instances.values,synthetic_predictions)
             if debug : 
-                print("local random forest fit completed")
+                print("local random forest fit completed for regression")
         elif modelType == "nc" : 
             if cv < 0 : # use pretrained model
                 local_random_forest = RandomForestClassifier(n_estimators=100,max_samples =1.0, max_leaf_nodes=6)
@@ -637,7 +641,7 @@ class MohitBase:
                 local_random_forest.fit(synthetic_instances.values,synthetic_predictions)
 
             if debug : 
-                print("local random forest fit completed")
+                print("local random forest fit completed for classifier")
 
         elif modelType == "py" : 
             local_rulefit_model = RuleFit(rfmode='classify',
@@ -1150,20 +1154,20 @@ class MohitBase:
             '''
 
             # Generating instances using GAN
-            # metadata = SingleTableMetadata()
-            # metadata.detect_from_dataframe(data=train_set_neigh)
-            # synthesizer = CTGANSynthesizer(
-            #     metadata, # required
-            #     enforce_rounding=True,
-            #     epochs=500,
-            #     verbose=False
-            # )
-            # synthesizer.fit(train_set_neigh)
-            # synthetic_data = synthesizer.sample(num_rows=10)
+            metadata = SingleTableMetadata()
+            metadata.detect_from_dataframe(data=train_set_neigh)
+            synthesizer = CTGANSynthesizer(
+                metadata, # required
+                enforce_rounding=True,
+                epochs=500,
+                verbose=False
+            )
+            synthesizer.fit(train_set_neigh)
+            synthetic_data = synthesizer.sample(num_rows=2000)
 
 
             # get the global model predictions of the generated instances and the instances in the neighbourhood
-            predict_dataset = train_set_neigh.append(new_con_df, ignore_index=True)
+            predict_dataset = train_set_neigh.append(synthetic_data, ignore_index=True)
             target = self.blackbox_model.predict(predict_dataset)
             target_df = pd.DataFrame(target)
 
