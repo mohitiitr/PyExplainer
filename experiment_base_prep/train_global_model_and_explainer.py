@@ -25,6 +25,7 @@ data_path = './dataset/'
 result_dir = './eval_result/'
 dump_dataframe_dir = './prediction_result/'
 exp_dir = './explainer_object/'
+d_dir = './synthetic_data/'
 
 if not os.path.exists(result_dir):
     os.makedirs(result_dir)
@@ -34,6 +35,9 @@ if not os.path.exists(dump_dataframe_dir):
     
 if not os.path.exists(exp_dir):
     os.makedirs(exp_dir)
+
+if not os.path.exists(d_dir):
+    os.makedirs(d_dir)
 
 def train_global_model(proj_name, x_train,y_train, global_model_name = 'RF'):
     
@@ -77,6 +81,12 @@ def get_correctly_predicted_defective_commit_indices(proj_name, global_model_nam
         correctly_predict_df = correctly_predict_df.set_index('commit_id')
         
     return correctly_predict_df.index
+
+def train_global_model_runner(proj_name, global_model_name):
+    x_train, x_test, y_train, y_test = prepare_data(proj_name, mode = 'all')
+
+    train_global_model(proj_name, x_train, y_train,global_model_name)
+    print('train {} of {} finished'.format(global_model_name, proj_name))
 
 def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_test, df_indices, debug=False):
     
@@ -229,20 +239,116 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
     pickle.dump(lime_time, open(save_dir+'/lime_time'+'.pkl','wb'))
 
     # mBase.logBestParams()
-
-def train_global_model_runner(proj_name, global_model_name):
-    x_train, x_test, y_train, y_test = prepare_data(proj_name, mode = 'all')
-
-    train_global_model(proj_name, x_train, y_train,global_model_name)
-    print('train {} of {} finished'.format(global_model_name, proj_name))
-
-    
+   
 def train_explainer(proj_name, global_model_name,debug=False):
     x_train, x_test, y_train, y_test = prepare_data(proj_name, mode = 'all')
 
     correctly_predict_indice = get_correctly_predicted_defective_commit_indices(proj_name, global_model_name, x_test, y_test)
     correctly_predict_indice = set(correctly_predict_indice)
     create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_test, correctly_predict_indice,debug=debug)
+
+
+def _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_train, y_test, df_indices, debug=False):
+    
+    save_dir = os.path.join(d_dir,proj_name,global_model_name)
+    
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+        
+    global_model = pickle.load(open(proj_name+'_'+global_model_name+'_global_model.pkl','rb'))
+
+    indep = x_test.columns
+    dep = 'defect'
+    class_label = ['clean', 'defect']
+
+    # Create Mohit Base Object which will be invoked again and again to create dataset. 
+    mBase = MohitBase(x_train, y_train, indep, dep, global_model, class_label)
+
+    feature_df = x_test.loc[df_indices]
+    test_label = y_test.loc[df_indices]
+
+    mBase_time = []
+    pyExp_time = []
+    lime_time= []
+    
+    for i in tqdm(range(0,len(feature_df))):
+        X_explain = feature_df.iloc[[i]]
+        y_explain = test_label.iloc[[i]]
+
+        row_index = str(X_explain.index[0])
+        combined_data_obj = {}
+        combined_data_obj['commit_id'] = row_index # add row index to the object
+
+        if debug : 
+            print("\nFor Row Index", row_index)
+
+
+        ########## Generating Data Using Gan ############
+        if debug : 
+            print("\tstarting Mohit-base")
+
+        start = time.time()
+        sampledData = mBase.generate_instance_gan(X_explain, y_explain, debug=debug)
+        end = time.time()
+        elapsed = end - start
+        sampledData['time'] = elapsed
+        mBase_time.append(elapsed)
+        combined_data_obj['mbase'] = sampledData
+
+        if debug : 
+            print("\t..done Mohit-base")
+        ########## Generating Data Using Gan ############
+
+        ########## Generating Data Using crossover_interpolation ############
+        if debug : 
+            print("\tstarting Pyexp")
+
+        start = time.time()
+        sampledData = mBase.generate_instance_crossover_interpolation(X_explain, y_explain, debug=debug)
+        end = time.time()
+        elapsed = end - start
+        sampledData['time'] = elapsed
+        pyExp_time.append(elapsed)
+        combined_data_obj['pyexp'] = sampledData
+
+        if debug : 
+            print("\t..done Pyexp")
+        ########## Generating Data Using crossover_interpolation ############
+
+        ########## Generating Data Using random_perturbation ############
+        if debug : 
+            print("\tstarting lime")
+
+        start = time.time()
+        sampledData = mBase.generate_instance_random_perturbation(X_explain,debug=debug)
+        end = time.time()
+        elapsed = end - start
+        sampledData['time'] = elapsed
+        lime_time.append(elapsed)
+        combined_data_obj['lime'] = sampledData
+
+        if debug : 
+            print("\t..done lime")
+        ########## Generating Data Using random_perturbation ############
+        
+        # write the updated object. 
+        pickle.dump(combined_data_obj, open(save_dir+'/syndata_'+row_index+'.pkl','wb'))
+
+        if debug : 
+            break
+
+    pickle.dump(mBase_time, open(save_dir+'/mBase_time'+'.pkl','wb'))
+    pickle.dump(pyExp_time, open(save_dir+'/pyExp_time'+'.pkl','wb'))
+    pickle.dump(lime_time, open(save_dir+'/lime_time'+'.pkl','wb'))
+
+    # mBase.logBestParams()
+
+def create_synthetic_data(proj_name, global_model_name,debug=False):
+    x_train, x_test, y_train, y_test = prepare_data(proj_name, mode = 'all')
+
+    correctly_predict_indice = get_correctly_predicted_defective_commit_indices(proj_name, global_model_name, x_test, y_test)
+    correctly_predict_indice = set(correctly_predict_indice)
+    _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_train, y_test, correctly_predict_indice,debug=debug)
 
 proj_name = sys.argv[1]
 proj_name = proj_name.lower()
@@ -259,6 +365,15 @@ else:
     train_global_model_runner(proj_name, global_model)
     print('finished training global model')
     
-    print('training explainers')
-    train_explainer(proj_name, global_model,debug=False)
-    print('finished training explainers')
+
+    ########### For Just Creating Synthetic Data ############
+    print('creating custom datasets')
+    create_synthetic_data(proj_name, global_model,debug=False)
+    print('finished creation of custom datasets')
+
+
+    # ########### For Creation of Explainers ###############
+    # print('training explainers')
+    # train_explainer(proj_name, global_model,debug=False)
+    # print('finished training explainers')
+

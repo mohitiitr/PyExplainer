@@ -23,6 +23,7 @@ data_path = './dataset/'
 result_dir = './eval_result/'
 dump_dataframe_dir = './prediction_result/'
 exp_dir = './explainer_object/'
+d_dir ='./synthetic_data/'
 
 fig_dir = result_dir+'figures/'
 
@@ -152,6 +153,95 @@ def get_global_model_evaluation_result(proj_name):
     eval_global_model(proj_name, lr_prediction_df)
 
 ###############################################################################
+def rq1_sample_test(proj_name, global_model_name, debug=False):
+    global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
+    all_eval_result = pd.DataFrame()
+    
+    for i in range(0,len(feature_df)):
+
+        # X_explain = feature_df.iloc[[i]]
+        X_explain = feature_df.loc[['c70350bfa58ced11e7b346f9ad3ba85b0617e8f8']]
+        # X_explain = feature_df[feature_df['commit_id'] == 'c70350bfa58ced11e7b346f9ad3ba85b0617e8f8']
+
+        # print(X_explain)
+        row_index = str(X_explain.index[0])
+
+        # print(feature_df. columns. values. tolist())
+        # print(X_explain. columns. values. tolist())
+        # print(type(X_explain.index[0]))
+    
+        data_obj = pickle.load(open(os.path.join(d_dir,proj_name,global_model_name,'syndata_'+row_index+'.pkl'),'rb'))
+        
+        
+        # obtain data for mohitbase
+        synthetic_object = data_obj['mbase']
+        nh_exp_synthetic_data = synthetic_object['synthetic_data'].loc[:, indep].values
+        
+        # obtain data for pyexplainer
+        synthetic_object = data_obj['pyexp']
+        py_exp_synthetic_data = synthetic_object['synthetic_data'].loc[:, indep].values
+        
+        # obtain data for lime
+        synthetic_object = data_obj['lime']
+        lime_exp_synthetic_data = synthetic_object['synthetic_data'].loc[:, indep].values
+
+
+        py_exp_dist = euclidean_distances(X_explain.values, py_exp_synthetic_data)
+        lime_dist = euclidean_distances(X_explain.values, lime_exp_synthetic_data)
+        nh_exp_dist = euclidean_distances(X_explain.values, nh_exp_synthetic_data)
+
+        py_exp_dist_mean, py_exp_dist_med = aggregate_list(py_exp_dist)
+        lime_exp_dist_mean, lime_exp_dist_med = aggregate_list(lime_dist)
+        nh_exp_dist_mean, nh_exp_dist_med = aggregate_list(nh_exp_dist)
+
+        py_exp_serie = pd.Series(data=[proj_name, row_index, 'pyExplainer',
+                                       py_exp_dist_med])
+        lime_exp_serie = pd.Series(data=[proj_name, row_index, 'LIME',
+                                         lime_exp_dist_med])
+        nh_exp_serie = pd.Series(data=[proj_name, row_index, 'mBase',
+                                       nh_exp_dist_med]) 
+        
+        all_eval_result = all_eval_result.append(py_exp_serie,ignore_index=True)
+        all_eval_result = all_eval_result.append(lime_exp_serie, ignore_index=True)
+        all_eval_result = all_eval_result.append(nh_exp_serie,ignore_index=True)
+        if debug : 
+            break
+        
+    all_eval_result.columns =['project', 'commit id', 'method', 'euc_dist_med']
+    
+    all_eval_result.to_csv(result_dir+'RQ1_sample_'+proj_name+'_'+global_model_name+'.csv',index=False)
+    print('finished RQ1 of',proj_name,', globla model is',global_model_name)
+    
+    openstack_rf = pd.read_csv(result_dir+'RQ1_sample_openstack_RF.csv')
+    qt_rf = pd.read_csv(result_dir+'RQ1_qt_RF.csv')
+    result_rf = pd.concat([openstack_rf, qt_rf])
+    result_rf['global_model'] = 'RF'
+    
+    openstack_lr = pd.read_csv(result_dir+'RQ1_openstack_LR.csv')
+    qt_lr = pd.read_csv(result_dir+'RQ1_qt_LR.csv')
+    result_lr = pd.concat([openstack_lr, qt_lr])
+    result_lr['global_model'] = 'LR'
+    
+    all_result = pd.concat([result_rf, result_lr])
+
+    fig, axs = plt.subplots(1,2, figsize=(10,6))
+
+    axs[0].set_title('RF')
+    axs[1].set_title('LR')
+    
+    axs[0].set(ylim=(0, 5000))
+    axs[1].set(ylim=(0, 5000))
+    
+    sns.boxplot(data=result_rf, x='project', y='euc_dist_med', hue='method', ax=axs[0])
+    sns.boxplot(data=result_lr, x='project', y='euc_dist_med', hue='method', ax=axs[1])
+    
+    plt.show()
+    
+    all_result.to_csv(result_dir+'/RQ1_sample.csv',index=False)
+    
+    fig.savefig(fig_dir+'RQ1_sample.png')
+
+###############################################################################
 def rq1_eval_test(proj_name, global_model_name):
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
     all_eval_result = pd.DataFrame()
@@ -160,6 +250,7 @@ def rq1_eval_test(proj_name, global_model_name):
         X_explain = feature_df.iloc[[i]]
 
         row_index = str(X_explain.index[0])
+
         mpath = os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_'+row_index+'.pkl')
         print(mpath)
         mfile = open(mpath,'rb')

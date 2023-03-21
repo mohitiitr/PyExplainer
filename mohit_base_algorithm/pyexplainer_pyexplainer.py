@@ -1077,6 +1077,8 @@ class MohitBase:
                 
             # Get the original training set instances which is equal to the index of the selected neighbours
             train_set_neigh = X_train_i[X_train_i.index.isin(final_neighbours_similarity_df.index)]
+            # the self atttribute in train_Set_neigh conflicts with the self attribute of the data function. hence remaning it
+            train_set_neigh.rename(columns = {'self':'delf'}, inplace = True)
             if debug:
                 print(train_set_neigh, "train set neigh")
 
@@ -1156,18 +1158,27 @@ class MohitBase:
             # Generating instances using GAN
             metadata = SingleTableMetadata()
             metadata.detect_from_dataframe(data=train_set_neigh)
+
+            if debug :
+                print(metadata)
+
             synthesizer = CTGANSynthesizer(
                 metadata, # required
                 enforce_rounding=True,
-                epochs=500,
-                verbose=False
+                epochs=100,
+                verbose=debug
             )
             synthesizer.fit(train_set_neigh)
             synthetic_data = synthesizer.sample(num_rows=2000)
+            
 
 
             # get the global model predictions of the generated instances and the instances in the neighbourhood
             predict_dataset = train_set_neigh.append(synthetic_data, ignore_index=True)
+            # revert the name changes done for training of ct gan
+            predict_dataset.rename(columns = {'delf':'self'}, inplace = True)
+
+            # obtain the predictions from the global black box model for the synthetic instances
             target = self.blackbox_model.predict(predict_dataset)
             target_df = pd.DataFrame(target)
 
