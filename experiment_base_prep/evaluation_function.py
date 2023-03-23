@@ -153,14 +153,14 @@ def get_global_model_evaluation_result(proj_name):
     eval_global_model(proj_name, lr_prediction_df)
 
 ###############################################################################
-def rq1_sample_test(proj_name, global_model_name, debug=False):
+def rq1_syndata_test(proj_name, global_model_name, debug=False):
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
     all_eval_result = pd.DataFrame()
     
-    for i in range(0,len(feature_df)):
+    for i in tqdm(range(0,len(feature_df))):
 
-        # X_explain = feature_df.iloc[[i]]
-        X_explain = feature_df.loc[['c70350bfa58ced11e7b346f9ad3ba85b0617e8f8']]
+        X_explain = feature_df.iloc[[i]]
+        # X_explain = feature_df.loc[['c70350bfa58ced11e7b346f9ad3ba85b0617e8f8']]
         # X_explain = feature_df[feature_df['commit_id'] == 'c70350bfa58ced11e7b346f9ad3ba85b0617e8f8']
 
         # print(X_explain)
@@ -209,16 +209,17 @@ def rq1_sample_test(proj_name, global_model_name, debug=False):
         
     all_eval_result.columns =['project', 'commit id', 'method', 'euc_dist_med']
     
-    all_eval_result.to_csv(result_dir+'RQ1_sample_'+proj_name+'_'+global_model_name+'.csv',index=False)
+    all_eval_result.to_csv(result_dir+'RQ1_syndata_'+proj_name+'_'+global_model_name+'.csv',index=False)
     print('finished RQ1 of',proj_name,', globla model is',global_model_name)
-    
-    openstack_rf = pd.read_csv(result_dir+'RQ1_sample_openstack_RF.csv')
-    qt_rf = pd.read_csv(result_dir+'RQ1_qt_RF.csv')
+
+def show_rq1_syndata_ed_result() :
+    openstack_rf = pd.read_csv(result_dir+'RQ1_syndata_openstack_RF.csv')
+    qt_rf = pd.read_csv(result_dir+'RQ1_syndata_qt_RF.csv')
     result_rf = pd.concat([openstack_rf, qt_rf])
     result_rf['global_model'] = 'RF'
     
-    openstack_lr = pd.read_csv(result_dir+'RQ1_openstack_LR.csv')
-    qt_lr = pd.read_csv(result_dir+'RQ1_qt_LR.csv')
+    openstack_lr = pd.read_csv(result_dir+'RQ1_syndata_openstack_LR.csv')
+    qt_lr = pd.read_csv(result_dir+'RQ1_syndata_qt_LR.csv')
     result_lr = pd.concat([openstack_lr, qt_lr])
     result_lr['global_model'] = 'LR'
     
@@ -237,7 +238,37 @@ def rq1_sample_test(proj_name, global_model_name, debug=False):
     
     plt.show()
     
-    all_result.to_csv(result_dir+'/RQ1_sample.csv',index=False)
+    all_result.to_csv(result_dir+'/RQ1_syndata.csv',index=False)
+    
+    fig.savefig(fig_dir+'RQ1_sample.png')
+
+def show_rq1_syndata_time_result() :
+    openstack_rf = pd.read_csv(d_dir+'RQ1_syndata_openstack_RF.csv')
+    qt_rf = pd.read_csv(result_dir+'RQ1_syndata_qt_RF.csv')
+    result_rf = pd.concat([openstack_rf, qt_rf])
+    result_rf['global_model'] = 'RF'
+    
+    openstack_lr = pd.read_csv(result_dir+'RQ1_syndata_openstack_LR.csv')
+    qt_lr = pd.read_csv(result_dir+'RQ1_syndata_qt_LR.csv')
+    result_lr = pd.concat([openstack_lr, qt_lr])
+    result_lr['global_model'] = 'LR'
+    
+    all_result = pd.concat([result_rf, result_lr])
+
+    fig, axs = plt.subplots(1,2, figsize=(10,6))
+
+    axs[0].set_title('RF')
+    axs[1].set_title('LR')
+    
+    axs[0].set(ylim=(0, 5000))
+    axs[1].set(ylim=(0, 5000))
+    
+    sns.boxplot(data=result_rf, x='project', y='euc_dist_med', hue='method', ax=axs[0])
+    sns.boxplot(data=result_lr, x='project', y='euc_dist_med', hue='method', ax=axs[1])
+    
+    plt.show()
+    
+    all_result.to_csv(result_dir+'/RQ1_syndata.csv',index=False)
     
     fig.savefig(fig_dir+'RQ1_sample.png')
 

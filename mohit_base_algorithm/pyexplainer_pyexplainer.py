@@ -26,6 +26,9 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.tools.tools import add_constant
 import pickle
 from sdv.single_table import CTGANSynthesizer
+from sdv.single_table import CopulaGANSynthesizer
+from sdv.single_table import GaussianCopulaSynthesizer
+from sdv.single_table import TVAESynthesizer
 from sdv.metadata import SingleTableMetadata
 
 
@@ -526,16 +529,31 @@ class MohitBase:
             raise TypeError
         self.set_top_k_rules(top_k)
         
+        synthesizer_type = search_function.lower()
+        valid_synthesizer = ['randomperturbation', 'crossoverinterpolation', 'ctgan' , 'copulagan', 'tvae' , 'gcopula']
+        if synthesizer_type not in valid_synthesizer : 
+            print('Value of Synthesiser not permissible, valid values are ' , valid_synthesizer )
+            raise ValueError
+        
 
         # Step 1 - Generate synthetic instances
-        if search_function.lower() == 'crossoverinterpolation':
+        if synthesizer_type == 'crossoverinterpolation':
             synthetic_object = self.generate_instance_crossover_interpolation(X_explain, y_explain, debug=debug)
-        elif search_function.lower() == 'randomperturbation':
+        elif synthesizer_type == 'randomperturbation':
             # This random perturbation approach to generate instances is used by LIME to gerate synthetic instances
             synthetic_object = self.generate_instance_random_perturbation(X_explain=X_explain, debug=debug)
-        elif search_function.lower() == 'ctgan' : 
+        elif synthesizer_type == 'ctgan' : 
             # advanced approach to create random instances for neighbourhood
-            synthetic_object = self.generate_instance_gan(X_explain=X_explain, debug=debug)
+            synthetic_object = self.generate_instance_sdv(X_explain=X_explain, synthesizer_type='ctgan', debug=debug)
+        elif synthesizer_type == 'gcopula' : 
+            # advanced approach to create random instances for neighbourhood
+            synthetic_object = self.generate_instance_sdv(X_explain=X_explain, synthesizer_type='gcopula', debug=debug)
+        elif synthesizer_type == 'tvae' : 
+            # advanced approach to create random instances for neighbourhood
+            synthetic_object = self.generate_instance_sdv(X_explain=X_explain, synthesizer_type='tvae', debug=debug)
+        elif synthesizer_type == 'copulagan' : 
+            # advanced approach to create random instances for neighbourhood
+            synthetic_object = self.generate_instance_sdv(X_explain=X_explain, synthesizer_type='copulagan', debug=debug)
 
         # Step 2 - Generate predictions of synthetic instances using the global model
         synthetic_instances = synthetic_object['synthetic_data'].loc[:, self.indep]
@@ -949,7 +967,7 @@ class MohitBase:
 
         return html
 
-    def generate_instance_gan(self, X_explain, y_explain, debug=False):
+    def generate_instance_sdv(self, X_explain, y_explain, synthesizer_type='ctgan', debug=False):
         """An approach to generate instance using Generative adversial Networks
 
         Parameters
@@ -966,6 +984,7 @@ class MohitBase:
         :obj:`dict`
             A dict with two keys 'synthetic_data' and 'sampled_class_frequency' generated via Generative Adversial Networks.
         """
+        
         if debug:
             print(">> generating Generative Adversial Networks")
         # categorical_vars = []
@@ -1162,19 +1181,55 @@ class MohitBase:
             if debug :
                 print(metadata)
 
-            synthesizer = CTGANSynthesizer(
-                metadata, # required
-                enforce_rounding=True,
-                epochs=100,
-                verbose=debug
-            )
+            if synthesizer_type == 'ctgan' : 
+                synthesizer = CTGANSynthesizer(
+                    metadata, # required
+                    enforce_min_max_values=True,
+                    enforce_rounding=True,
+                    epochs=400,
+                    verbose=debug,
+                    batch_size = 100
+                    
+                )
+            elif synthesizer_type == 'copulagan' : 
+                synthesizer = CopulaGANSynthesizer(
+                    metadata, # required
+                    enforce_min_max_values=True,
+                    enforce_rounding=True,
+                    epochs=500,
+                    verbose=debug
+                )
+            elif synthesizer_type == 'gcopula' : 
+                synthesizer = GaussianCopulaSynthesizer(
+                    metadata, # required
+                    enforce_min_max_values=True,
+                    enforce_rounding=True,
+                    default_distribution='norm',
+                    # verbose = debug # throws error
+                )
+            elif synthesizer_type == 'tvae' : 
+                synthesizer = TVAESynthesizer(
+                    metadata, # required
+                    enforce_min_max_values=True,
+                    enforce_rounding=True,
+                    epochs=500,
+                    batch_size = 100,
+                    # verbose = debug # throws error
+                )
+            # elif synthesizer_type == 'ctgan' : 
+            else : 
+                raise ValueError
+
+            # train the artificial neural network / synthesizer
             synthesizer.fit(train_set_neigh)
+            # sample 2000 synthetic data points from the trained synthesizer
             synthetic_data = synthesizer.sample(num_rows=2000)
             
 
 
             # get the global model predictions of the generated instances and the instances in the neighbourhood
             predict_dataset = train_set_neigh.append(synthetic_data, ignore_index=True)
+
             # revert the name changes done for training of ct gan
             predict_dataset.rename(columns = {'delf':'self'}, inplace = True)
 

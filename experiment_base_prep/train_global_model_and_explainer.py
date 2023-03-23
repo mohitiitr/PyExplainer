@@ -248,7 +248,7 @@ def train_explainer(proj_name, global_model_name,debug=False):
     create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_test, correctly_predict_indice,debug=debug)
 
 
-def _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_train, y_test, df_indices, debug=False):
+def _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_train, y_test, df_indices, synthesizer_type=[], debug=False):
     
     save_dir = os.path.join(d_dir,proj_name,global_model_name)
     
@@ -267,9 +267,7 @@ def _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_trai
     feature_df = x_test.loc[df_indices]
     test_label = y_test.loc[df_indices]
 
-    mBase_time = []
-    pyExp_time = []
-    lime_time= []
+    time_dict = {}
     
     for i in tqdm(range(0,len(feature_df))):
         X_explain = feature_df.iloc[[i]]
@@ -283,72 +281,140 @@ def _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_trai
             print("\nFor Row Index", row_index)
 
 
-        ########## Generating Data Using Gan ############
-        if debug : 
-            print("\tstarting Mohit-base")
+        if len(synthesizer_type) == 0 or 'ctgan' in synthesizer_type : 
+            ########## Generating Data Using CTGan ############
+            if debug : 
+                print("\tstarting Mohit-base CTGa")
+            if i == 0 : 
+                time_dict['ctgan'] = []
 
-        start = time.time()
-        sampledData = mBase.generate_instance_gan(X_explain, y_explain, debug=debug)
-        end = time.time()
-        elapsed = end - start
-        sampledData['time'] = elapsed
-        mBase_time.append(elapsed)
-        combined_data_obj['mbase'] = sampledData
+            start = time.time()
+            sampledData = mBase.generate_instance_sdv(X_explain, y_explain, 'ctgan' , debug=debug)
+            end = time.time()
+            elapsed = end - start
+            sampledData['time'] = elapsed
+            time_dict['ctgan'].append(elapsed)
+            combined_data_obj['ctgan'] = sampledData
 
-        if debug : 
-            print("\t..done Mohit-base")
-        ########## Generating Data Using Gan ############
+            if debug : 
+                print("\t..done Mohit-base CTGa")
+            ########## Generating Data Using CTGan ############
+        
+        if len(synthesizer_type) == 0 or 'copulagan' in synthesizer_type : 
+            ########## Generating Data Using copulagan ############
+            if debug : 
+                print("\tstarting Mohit-base copulagan")
+            if i == 0 : 
+                time_dict['copulagan'] = []
 
-        ########## Generating Data Using crossover_interpolation ############
-        if debug : 
-            print("\tstarting Pyexp")
+            start = time.time()
+            sampledData = mBase.generate_instance_sdv(X_explain, y_explain, 'copulagan' , debug=debug)
+            end = time.time()
+            elapsed = end - start
+            sampledData['time'] = elapsed
+            time_dict['copulagan'].append(elapsed)
+            combined_data_obj['copulagan'] = sampledData
 
-        start = time.time()
-        sampledData = mBase.generate_instance_crossover_interpolation(X_explain, y_explain, debug=debug)
-        end = time.time()
-        elapsed = end - start
-        sampledData['time'] = elapsed
-        pyExp_time.append(elapsed)
-        combined_data_obj['pyexp'] = sampledData
+            if debug : 
+                print("\t..done Mohit-base copulagan")
+            ########## Generating Data Using copulagan ############
+        
+        if len(synthesizer_type) == 0 or 'tvae' in synthesizer_type : 
+            ########## Generating Data Using TVAE ############
+            if debug : 
+                print("\tstarting Mohit-base tvae")
+            if i == 0 : 
+                time_dict['tvae'] = []
 
-        if debug : 
-            print("\t..done Pyexp")
-        ########## Generating Data Using crossover_interpolation ############
+            start = time.time()
+            sampledData = mBase.generate_instance_sdv(X_explain, y_explain, 'tvae' , debug=debug)
+            end = time.time()
+            elapsed = end - start
+            sampledData['time'] = elapsed
+            time_dict['tvae'].append(elapsed)
+            combined_data_obj['tvae'] = sampledData
 
-        ########## Generating Data Using random_perturbation ############
-        if debug : 
-            print("\tstarting lime")
+            if debug : 
+                print("\t..done Mohit-base tvae")
+            ########## Generating Data Using TVAE ############
+        
+        if len(synthesizer_type) == 0 or 'gcopula' in synthesizer_type : 
+            ########## Generating Data Using gcopula ############
+            if debug : 
+                print("\tstarting Mohit-base gcopula")
+            if i == 0 : 
+                time_dict['gcopula'] = []
 
-        start = time.time()
-        sampledData = mBase.generate_instance_random_perturbation(X_explain,debug=debug)
-        end = time.time()
-        elapsed = end - start
-        sampledData['time'] = elapsed
-        lime_time.append(elapsed)
-        combined_data_obj['lime'] = sampledData
+            start = time.time()
+            sampledData = mBase.generate_instance_sdv(X_explain, y_explain, 'gcopula' , debug=debug)
+            end = time.time()
+            elapsed = end - start
+            sampledData['time'] = elapsed
+            time_dict['gcopula'].append(elapsed)
+            combined_data_obj['gcopula'] = sampledData
 
-        if debug : 
-            print("\t..done lime")
-        ########## Generating Data Using random_perturbation ############
+            if debug : 
+                print("\t..done Mohit-base gcopula")
+            ########## Generating Data Using gcopula ############
+
+        if len(synthesizer_type) == 0 or 'crossoverinterpolation' in synthesizer_type : 
+            ########## Generating Data Using crossover_interpolation ############
+            if debug : 
+                print("\tstarting Pyexp")
+            if i == 0 : 
+                time_dict['crossoverinterpolation'] = []
+
+            start = time.time()
+            sampledData = mBase.generate_instance_crossover_interpolation(X_explain, y_explain, debug=debug)
+            end = time.time()
+            elapsed = end - start
+            sampledData['time'] = elapsed
+            time_dict['crossoverinterpolation'].append(elapsed)
+            combined_data_obj['pyexp'] = sampledData
+
+            if debug : 
+                print("\t..done Pyexp")
+            ########## Generating Data Using crossover_interpolation ############
+
+        if len(synthesizer_type) == 0 or 'randomperturbation' in synthesizer_type : 
+            ########## Generating Data Using random_perturbation ############
+            if debug : 
+                print("\tstarting lime")
+            if i == 0 : 
+                time_dict['randomperturbation'] = []
+
+            start = time.time()
+            sampledData = mBase.generate_instance_random_perturbation(X_explain,debug=debug)
+            end = time.time()
+            elapsed = end - start
+            sampledData['time'] = elapsed
+            time_dict['randomperturbation'].append(elapsed)
+            combined_data_obj['lime'] = sampledData
+
+            if debug : 
+                print("\t..done lime")
+            ########## Generating Data Using random_perturbation ############
         
         # write the updated object. 
+        old_data = pickle.load(open(save_dir+'/syndata_'+row_index+'.pkl','rb'))
+        combined_data_obj['lime'] = old_data['lime']
+        combined_data_obj['pyexp'] = old_data['pyexp']
+        combined_data_obj['ctgan'] = old_data['mbase']
         pickle.dump(combined_data_obj, open(save_dir+'/syndata_'+row_index+'.pkl','wb'))
 
         if debug : 
             break
 
-    pickle.dump(mBase_time, open(save_dir+'/mBase_time'+'.pkl','wb'))
-    pickle.dump(pyExp_time, open(save_dir+'/pyExp_time'+'.pkl','wb'))
-    pickle.dump(lime_time, open(save_dir+'/lime_time'+'.pkl','wb'))
+    pickle.dump(time_dict, open(save_dir+'/time_dict'+'.pkl','wb'))
 
     # mBase.logBestParams()
 
-def create_synthetic_data(proj_name, global_model_name,debug=False):
+def create_synthetic_data(proj_name, global_model_name, synthesizer_type=[], debug=False):
     x_train, x_test, y_train, y_test = prepare_data(proj_name, mode = 'all')
 
     correctly_predict_indice = get_correctly_predicted_defective_commit_indices(proj_name, global_model_name, x_test, y_test)
     correctly_predict_indice = set(correctly_predict_indice)
-    _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_train, y_test, correctly_predict_indice,debug=debug)
+    _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_train, y_test, correctly_predict_indice, synthesizer_type, debug=debug)
 
 proj_name = sys.argv[1]
 proj_name = proj_name.lower()
@@ -368,7 +434,7 @@ else:
 
     ########### For Just Creating Synthetic Data ############
     print('creating custom datasets')
-    create_synthetic_data(proj_name, global_model,debug=False)
+    create_synthetic_data(proj_name, global_model,synthesizer_type = ['gcopula', 'tvae', 'copulagan'] , debug=False)
     print('finished creation of custom datasets')
 
 
