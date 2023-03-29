@@ -1221,7 +1221,11 @@ class MohitBase:
                 raise ValueError
 
             # train the artificial neural network / synthesizer
-            synthesizer.fit(train_set_neigh)
+            try : 
+                synthesizer.fit(train_set_neigh)
+            except : 
+                print("system failed to converge, returning results of CTGan")
+                return self.generate_instance_sdv(X_explain, y_explain, synthesizer_type='ctgan', debug=debug)
             # sample 2000 synthetic data points from the trained synthesizer
             synthetic_data = synthesizer.sample(num_rows=2000)
             

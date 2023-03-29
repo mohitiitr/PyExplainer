@@ -399,7 +399,10 @@ def _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_trai
         old_data = pickle.load(open(save_dir+'/syndata_'+row_index+'.pkl','rb'))
         combined_data_obj['lime'] = old_data['lime']
         combined_data_obj['pyexp'] = old_data['pyexp']
-        combined_data_obj['ctgan'] = old_data['mbase']
+        try : 
+            combined_data_obj['ctgan'] = old_data['mbase']
+        except : 
+            combined_data_obj['ctgan'] = old_data['ctgan']
         pickle.dump(combined_data_obj, open(save_dir+'/syndata_'+row_index+'.pkl','wb'))
 
         if debug : 
