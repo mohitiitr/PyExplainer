@@ -157,6 +157,14 @@ def rq1_syndata_test(proj_name, global_model_name, debug=False):
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
     all_eval_result = pd.DataFrame()
     
+
+    def prepareSeries(data_dict, data_model) : 
+        synthetic_data = data_dict['synthetic_data'].loc[:, indep].values
+        euc_dist = euclidean_distances(X_explain.values, synthetic_data)
+        dist_mean, dist_med = aggregate_list(euc_dist)
+        serie = pd.Series(data=[proj_name, row_index, data_model, dist_med])
+        return serie
+
     for i in tqdm(range(0,len(feature_df))):
 
         X_explain = feature_df.iloc[[i]]
@@ -171,39 +179,15 @@ def rq1_syndata_test(proj_name, global_model_name, debug=False):
         # print(type(X_explain.index[0]))
     
         data_obj = pickle.load(open(os.path.join(d_dir,proj_name,global_model_name,'syndata_'+row_index+'.pkl'),'rb'))
-        
-        
-        # obtain data for mohitbase
-        synthetic_object = data_obj['mbase']
-        nh_exp_synthetic_data = synthetic_object['synthetic_data'].loc[:, indep].values
-        
-        # obtain data for pyexplainer
-        synthetic_object = data_obj['pyexp']
-        py_exp_synthetic_data = synthetic_object['synthetic_data'].loc[:, indep].values
-        
-        # obtain data for lime
-        synthetic_object = data_obj['lime']
-        lime_exp_synthetic_data = synthetic_object['synthetic_data'].loc[:, indep].values
+       
+        all_eval_result = all_eval_result.append(  prepareSeries(data_obj['pyexp'],'pyexp') ,ignore_index=True)
+        all_eval_result = all_eval_result.append(  prepareSeries(data_obj['lime'],'lime') ,ignore_index=True)
+        all_eval_result = all_eval_result.append(  prepareSeries(data_obj['ctgan'],'ctgan') ,ignore_index=True)
+        all_eval_result = all_eval_result.append(  prepareSeries(data_obj['tvae'],'tvae') ,ignore_index=True)
+        all_eval_result = all_eval_result.append(  prepareSeries(data_obj['gcopula'],'gcopula') ,ignore_index=True)
+        all_eval_result = all_eval_result.append(  prepareSeries(data_obj['copulagan'],'copulagan') ,ignore_index=True)
 
 
-        py_exp_dist = euclidean_distances(X_explain.values, py_exp_synthetic_data)
-        lime_dist = euclidean_distances(X_explain.values, lime_exp_synthetic_data)
-        nh_exp_dist = euclidean_distances(X_explain.values, nh_exp_synthetic_data)
-
-        py_exp_dist_mean, py_exp_dist_med = aggregate_list(py_exp_dist)
-        lime_exp_dist_mean, lime_exp_dist_med = aggregate_list(lime_dist)
-        nh_exp_dist_mean, nh_exp_dist_med = aggregate_list(nh_exp_dist)
-
-        py_exp_serie = pd.Series(data=[proj_name, row_index, 'pyExplainer',
-                                       py_exp_dist_med])
-        lime_exp_serie = pd.Series(data=[proj_name, row_index, 'LIME',
-                                         lime_exp_dist_med])
-        nh_exp_serie = pd.Series(data=[proj_name, row_index, 'mBase',
-                                       nh_exp_dist_med]) 
-        
-        all_eval_result = all_eval_result.append(py_exp_serie,ignore_index=True)
-        all_eval_result = all_eval_result.append(lime_exp_serie, ignore_index=True)
-        all_eval_result = all_eval_result.append(nh_exp_serie,ignore_index=True)
         if debug : 
             break
         
@@ -444,10 +428,29 @@ def rq2_eval(proj_name, global_model_name, debug = False):
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
     all_eval_result = pd.DataFrame()
     
-    pyexp_label, pyexp_prob = [],[]
-    lime_label, lime_prob = [],[]
-    nh_label, nh_prob = [], []
-    
+    all_labels = {'pyexp' : [] , 'lime' : [] , 'nh' : [] , 'mctgan' : [], 'mgcopula' : [] , 'mtvae' : [], 'mcopulagan' : []}
+    all_probs = {'pyexp' : [] , 'lime' : [] , 'nh' : [] , 'mctgan' : [], 'mgcopula' : [] , 'mtvae' : [], 'mcopulagan' : []}
+
+    def _prepareSerie(exp, exp_name) : 
+        synthetic_data = exp['synthetic_data'].values # synthetic data to work upon
+        local_model = exp['local_model'] # local explainer model 
+
+        global_pred = global_model.predict(synthetic_data) # for the model to be explained 
+        local_pred = local_model.predict(synthetic_data) # predictions for the synthetic data for local model, to understand how well local model maps to global model 
+
+        local_prob_inter = local_model.predict_proba(synthetic_data) 
+        local_prob = local_prob_inter[:,1] # proba for local model 
+
+        all_labels[exp_name].extend(list(global_pred)) # store for later use
+        all_probs[exp_name].extend(list(local_prob)) # store for later use
+
+
+        exp_auc = roc_auc_score(global_pred, local_prob) # roc auc 
+        exp_f1 = f1_score(global_pred, local_pred) # f1 
+        
+        exp_serie = pd.Series(data=[proj_name, row_index, exp_name, exp_auc, exp_f1]) # embed data in the serie and return
+        return exp_serie
+       
     for i in tqdm(range(0,len(feature_df))):
         if debug : 
             if i > 0 : 
@@ -457,98 +460,52 @@ def rq2_eval(proj_name, global_model_name, debug = False):
         row_index = str(X_explain.index[0])
 
         exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_'+row_index+'.pkl'),'rb'))
-        py_exp = exp_obj['pyExplainer']
+        
+        ######### Processing of Line happens Little different so keep it separate ##########
         lime_exp = exp_obj['LIME']
-        nh_exp = exp_obj['MBase']
-
-        # this data can be used for both local and global model
-        py_exp_synthetic_data = py_exp['synthetic_data'].values
-
         # this data can be used with global model only
         lime_exp_synthetic_data = lime_exp['synthetic_instance_for_global_model']
         # this data can be used with local model only
         lime_exp_synthetic_data_local = lime_exp['synthetic_instance_for_lobal_model']
-
-        # this data can be used for both local and global model 
-        nh_exp_synthetic_data = nh_exp['synthetic_data'].values
-        
-        py_exp_local_model = py_exp['local_model']
+        # get model from lime 
         lime_exp_local_model = lime_exp['local_model']
-        nh_exp_local_model = nh_exp['local_model']
-
-        py_exp_global_pred = global_model.predict(py_exp_synthetic_data) 
-        py_exp_local_prob_inter = py_exp_local_model.predict_proba(py_exp_synthetic_data)
-        py_exp_local_prob = py_exp_local_prob_inter[:,1]
-        py_exp_local_pred = py_exp_local_model.predict(py_exp_synthetic_data)
-        
-        if debug : 
-            print("pyexplainer" , len(py_exp_synthetic_data))
-            print(py_exp_global_pred[:5]) # vairable is an array so we print, first element of this
-            print(py_exp_local_prob_inter[:5]) # vairable is an array of arrays so we print, first element of this
-            print(type(py_exp_local_prob_inter), type(py_exp_local_prob_inter[0]))
-            print(py_exp_local_prob[:5]) # vairable is an array so we print, first element of this
-            print(py_exp_local_pred[:5]) # vairable is an array so we print, first element of this
-            # break
-            
+        # get predictions and Probs 
         lime_exp_global_pred = global_model.predict(lime_exp_synthetic_data)
         lime_exp_local_prob = lime_exp_local_model.predict(lime_exp_synthetic_data_local)
         lime_exp_local_pred = np.round(lime_exp_local_prob)
 
-        nh_exp_global_pred = global_model.predict(nh_exp_synthetic_data) 
-        nh_exp_local_pred = nh_exp_local_model.predict(nh_exp_synthetic_data,debug=debug)
+        all_labels['lime'].extend(list(lime_exp_global_pred))
+        all_probs['lime'].extend(list(lime_exp_local_prob))
 
-        nh_exp_local_prob_inter = nh_exp_local_model.predict_proba(nh_exp_synthetic_data,debug=debug)
-        nh_exp_local_prob = nh_exp_local_prob_inter[:,1]
-        
-        
-        if debug : 
-            print("node harvest", len(nh_exp_synthetic_data))
-            print(nh_exp_global_pred[:5]) # vairable is an array so we print, first element of this
-            print(nh_exp_local_prob_inter[:5]) # vairable is an array of arrays so we print, first element of this
-            print(type(nh_exp_local_prob_inter), type(nh_exp_local_prob_inter[0]) )
-            print(nh_exp_local_prob[:5]) # vairable is an array so we print, first element of this
-            print(nh_exp_local_pred[:5]) # vairable is an array so we print, first element of this
-            # break
-
-
-        pyexp_label.extend(list(py_exp_global_pred))
-        pyexp_prob.extend(list(py_exp_local_prob))
-        
-        lime_label.extend(list(lime_exp_global_pred))
-        lime_prob.extend(list(lime_exp_local_prob))
-
-        nh_label.extend(list(nh_exp_global_pred))
-        nh_prob.extend(list(nh_exp_local_prob))
-        
-        
-        py_exp_auc = roc_auc_score(py_exp_global_pred, py_exp_local_prob)
-        py_exp_f1 = f1_score(py_exp_global_pred, py_exp_local_pred)
-        
         lime_auc = roc_auc_score(lime_exp_global_pred, lime_exp_local_prob)
         lime_f1 = f1_score(lime_exp_global_pred, lime_exp_local_pred)
 
-        nh_exp_auc = roc_auc_score(nh_exp_global_pred, nh_exp_local_prob)
-        nh_exp_f1 = f1_score(nh_exp_global_pred, nh_exp_local_pred)
+        lime_exp_serie = pd.Series(data=[proj_name, row_index, 'LIME', lime_auc, lime_f1])
 
-        py_exp_serie = pd.Series(data=[proj_name, row_index, 'pyExplainer',
-                                        py_exp_auc, py_exp_f1])
-        lime_exp_serie = pd.Series(data=[proj_name, row_index, 'LIME',
-                                           lime_auc, lime_f1])
-        nh_exp_serie = pd.Series(data=[proj_name, row_index, 'mBase',
-                                        nh_exp_auc, nh_exp_f1])
-        
-        
-        all_eval_result = all_eval_result.append(py_exp_serie,ignore_index=True)
         all_eval_result = all_eval_result.append(lime_exp_serie, ignore_index=True)
-        all_eval_result = all_eval_result.append(nh_exp_serie,ignore_index=True)
+        ######### Processing of Line happens Little different so keep it separate ##########
+        
+        
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['PyExplainer'], 'pyexp'),ignore_index=True) # for 'PyExplainer'
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mctgan'], 'mctgan'),ignore_index=True) # for 'mctgan'
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mcopulagan'], 'mcopulagan'),ignore_index=True) # for 'mcopulagan'
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mtvae'], 'mtvae'),ignore_index=True) # for 'mtvae'
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mgcopula'], 'mgcopula'),ignore_index=True) # for 'mgcopula'
+        # all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mcrossinter'], 'mcrossinter'),ignore_index=True) # for 'mcrossinter'
+
     
     pred_df = pd.DataFrame()
-    
-    all_tech = ['pyExplainer']*len(pyexp_label) + ['LIME']*len(lime_label) + ['mBase']*len(nh_label)
-    
-    pred_df['technique'] = all_tech
-    pred_df['label'] = pyexp_label+lime_label + nh_label
-    pred_df['prob'] = pyexp_prob+lime_prob+nh_prob
+
+    pred_df['technique'] = ['lime']*len(all_labels['lime']) + ['pyexp']*len(all_labels['pyexp']) + ['mctgan']*len(all_labels['mctgan']) + ['mcopuagan']*len(all_labels['mcopuagan'])+ ['mtvae']*len(all_labels['mtvae']) + ['mgcopula']*len(all_labels['mgcopula']) 
+
+    # + ['mcrossinter']*len(all_labels['mcrossinter']) 
+
+    pred_df['label'] = all_labels['lime'] + all_labels['pyexp'] + all_labels['mctgan'] + all_labels['mcopuagan'] + all_labels['mtvae'] + all_labels['mgcopula']
+    # + all_labels['mcrossinter']
+
+    pred_df['prob'] = all_probs['lime'] + all_probs['pyexp'] + all_probs['mctgan'] + all_probs['mcopuagan'] + all_probs['mtvae'] + all_probs['mgcopula']
+    # + all_probs['mcrossinter']
+
     pred_df['project'] = proj_name
     
     all_eval_result.columns = ['project', 'commit id', 'method', 'AUC', 'F1']

@@ -463,6 +463,8 @@ class MohitBase:
                 cv=5,
                 modelType = "nc", 
                 search_function='CrossoverInterpolation',
+                usePreTrainedData = False,
+                preTrainedData = None,
                 debug=False):
         """Generate Rule Object Manually by passing X_explain and y_explain
 
@@ -537,7 +539,16 @@ class MohitBase:
         
 
         # Step 1 - Generate synthetic instances
-        if synthesizer_type == 'crossoverinterpolation':
+
+
+        if usePreTrainedData : 
+            if preTrainedData == None : 
+                print ('when "userPreTrainedData" is set True, preTrainedData must be supplied, currently none ')
+                raise ValueError 
+            synthetic_object = preTrainedData     
+            if debug : 
+                print('Used preTrainedData')
+        elif synthesizer_type == 'crossoverinterpolation':
             synthetic_object = self.generate_instance_crossover_interpolation(X_explain, y_explain, debug=debug)
         elif synthesizer_type == 'randomperturbation':
             # This random perturbation approach to generate instances is used by LIME to gerate synthetic instances
@@ -755,7 +766,7 @@ class MohitBase:
                     'indep': self.indep,
                     'dep': self.dep,
                     'rules' : lnh_rules,
-                    'local_node_harvest_model': local_node_harvest}
+                    'local_model': local_node_harvest}
         return rule_obj
 
 
