@@ -486,7 +486,7 @@ def rq2_eval(proj_name, global_model_name, debug = False):
         ######### Processing of Line happens Little different so keep it separate ##########
         
         
-        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['PyExplainer'], 'pyexp'),ignore_index=True) # for 'PyExplainer'
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['pyExplainer'], 'pyexp'),ignore_index=True) # for 'PyExplainer'
         all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mctgan'], 'mctgan'),ignore_index=True) # for 'mctgan'
         all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mcopulagan'], 'mcopulagan'),ignore_index=True) # for 'mcopulagan'
         all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mtvae'], 'mtvae'),ignore_index=True) # for 'mtvae'
@@ -496,14 +496,14 @@ def rq2_eval(proj_name, global_model_name, debug = False):
     
     pred_df = pd.DataFrame()
 
-    pred_df['technique'] = ['lime']*len(all_labels['lime']) + ['pyexp']*len(all_labels['pyexp']) + ['mctgan']*len(all_labels['mctgan']) + ['mcopuagan']*len(all_labels['mcopuagan'])+ ['mtvae']*len(all_labels['mtvae']) + ['mgcopula']*len(all_labels['mgcopula']) 
+    pred_df['technique'] = ['lime']*len(all_labels['lime']) + ['pyexp']*len(all_labels['pyexp']) + ['mctgan']*len(all_labels['mctgan']) + ['mcopulagan']*len(all_labels['mcopulagan'])+ ['mtvae']*len(all_labels['mtvae']) + ['mgcopula']*len(all_labels['mgcopula']) 
 
     # + ['mcrossinter']*len(all_labels['mcrossinter']) 
 
-    pred_df['label'] = all_labels['lime'] + all_labels['pyexp'] + all_labels['mctgan'] + all_labels['mcopuagan'] + all_labels['mtvae'] + all_labels['mgcopula']
+    pred_df['label'] = all_labels['lime'] + all_labels['pyexp'] + all_labels['mctgan'] + all_labels['mcopulagan'] + all_labels['mtvae'] + all_labels['mgcopula']
     # + all_labels['mcrossinter']
 
-    pred_df['prob'] = all_probs['lime'] + all_probs['pyexp'] + all_probs['mctgan'] + all_probs['mcopuagan'] + all_probs['mtvae'] + all_probs['mgcopula']
+    pred_df['prob'] = all_probs['lime'] + all_probs['pyexp'] + all_probs['mctgan'] + all_probs['mcopulagan'] + all_probs['mtvae'] + all_probs['mgcopula']
     # + all_probs['mcrossinter']
 
     pred_df['project'] = proj_name
