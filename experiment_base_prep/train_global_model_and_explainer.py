@@ -102,16 +102,16 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
     class_label = ['clean', 'defect']
     
 
-    # #################################
-    # # for authors apporach
-    # pyExp = PyExplainer(x_train, y_train, indep, dep, global_model, class_label)
+    #################################
+    # for authors apporach
+    pyExp = PyExplainer(x_train, y_train, indep, dep, global_model, class_label)
 
-    # # for baseline
-    # # note: 6 is index of 'self' feature
-    # lime_explainer = LimeTabularExplainer(x_train.values, categorical_features=[6],
-    #                                   feature_names=indep, class_names=class_label, 
-    #                                   random_state=0)
-    # #################################
+    # for baseline
+    # note: 6 is index of 'self' feature
+    lime_explainer = LimeTabularExplainer(x_train.values, categorical_features=[6],
+                                      feature_names=indep, class_names=class_label, 
+                                      random_state=0)
+    #################################
 
     # for my testing 
     mBase = MohitBase(x_train, y_train, indep, dep, global_model, class_label)
@@ -160,53 +160,53 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
             print("\nFor Row Index", row_index)
 
 
-        # #########   LIME  #############
-        # if debug : 
-        #     print("\tstarting lime")
-        # X_explain = feature_df.iloc[i] # to prevent error in LIME
-        # start = time.time()
-        # exp, synt_inst, synt_inst_for_local_model, selected_feature_indices, local_model = lime_explainer.explain_instance(X_explain, global_model.predict_proba, num_samples=5000)
+        #########   LIME  #############
+        if debug : 
+            print("\tstarting lime")
+        X_explain = feature_df.iloc[i] # to prevent error in LIME
+        start = time.time()
+        exp, synt_inst, synt_inst_for_local_model, selected_feature_indices, local_model = lime_explainer.explain_instance(X_explain, global_model.predict_proba, num_samples=5000)
 
-        # lime_obj = {}
-        # lime_obj['rule'] = exp
-        # lime_obj['synthetic_instance_for_global_model'] = synt_inst
-        # lime_obj['synthetic_instance_for_lobal_model'] = synt_inst_for_local_model
-        # lime_obj['local_model'] = local_model
-        # lime_obj['selected_feature_indeces'] = selected_feature_indices
-        # lime_obj['commit_id'] = row_index
-        # end = time.time()
-        # elapsed = end - start
-        # lime_time.append(elapsed)
-        # # add time stamp to the object
-        # lime_obj['time'] = elapsed
-        # if debug : 
-        #     print("\t..done lime")
-        # #################################
+        lime_obj = {}
+        lime_obj['rule'] = exp
+        lime_obj['synthetic_instance_for_global_model'] = synt_inst
+        lime_obj['synthetic_instance_for_lobal_model'] = synt_inst_for_local_model
+        lime_obj['local_model'] = local_model
+        lime_obj['selected_feature_indeces'] = selected_feature_indices
+        lime_obj['commit_id'] = row_index
+        end = time.time()
+        elapsed = end - start
+        lime_time.append(elapsed)
+        # add time stamp to the object
+        lime_obj['time'] = elapsed
+        if debug : 
+            print("\t..done lime")
+        #################################
 
 
         
-        # ##########  PyExplainer ############
-        # if debug : 
-        #     print("\tstarting pyexplainer")
-        # start = time.time()
-        # pyExp_obj = pyExp.explain(X_explain,
-        #                         y_explain,
-        #                         search_function = 'CrossoverInterpolation')
-        # end = time.time()
-        # elapsed = end - start
-        # pyExp_time.append(elapsed)
-        # if debug : 
-        #     print("\t..done pyexplainer")
+        ##########  PyExplainer ############
+        if debug : 
+            print("\tstarting pyexplainer")
+        start = time.time()
+        pyExp_obj = pyExp.explain(X_explain,
+                                y_explain,
+                                search_function = 'CrossoverInterpolation')
+        end = time.time()
+        elapsed = end - start
+        pyExp_time.append(elapsed)
+        if debug : 
+            print("\t..done pyexplainer")
 
-        # # add row index to the object 
-        # pyExp_obj['commit_id'] = row_index
-        # # add time stamp to the object
-        # pyExp_obj['time'] = elapsed
+        # add row index to the object 
+        pyExp_obj['commit_id'] = row_index
+        # add time stamp to the object
+        pyExp_obj['time'] = elapsed
 
-        # # because I don't want to change key name in another evaluation file
-        # pyExp_obj['local_model'] = pyExp_obj['local_rulefit_model']
-        # del pyExp_obj['local_rulefit_model']
-        # #################################
+        # because I don't want to change key name in another evaluation file
+        pyExp_obj['local_model'] = pyExp_obj['local_rulefit_model']
+        del pyExp_obj['local_rulefit_model']
+        #################################
         
         preTrainedAllData = pickle.load(open(os.path.join(d_dir,proj_name,global_model_name,'syndata_'+row_index+'.pkl'),'rb'))
 
@@ -215,7 +215,7 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
         mcopulagan_obj = _prepareExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['copulagan'],search_function='copulagan')
         mtvae_obj = _prepareExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['tvae'],search_function='tvae')
         mgcopula_obj = _prepareExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['gcopula'],search_function='gcopula')
-        # mcrossinter_obj = _prepareExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['crossoverinterpolation'],search_function='crossoverinterpolation')
+        mcrossinter_obj = _prepareExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['crossoverinterpolation'],search_function='crossoverinterpolation')
         '''
         ################### When All Explainers Created ########## 
         # create all explainer object
@@ -232,12 +232,13 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
         all_explainer = pickle.load(open(save_dir+'/all_explainer_'+row_index+'.pkl','rb'))
 
         # update the object
-        all_explainer = {'pyExplainer':all_explainer['pyExplainer'], 
-                         'LIME': all_explainer['LIME'] , 
+        all_explainer = {'pyexp':pyExp_obj, 
+                         'LIME': lime_obj, 
                          'mctgan' : mctgan_obj, 
                          'mcopulagan' : mcopulagan_obj, 
                          'mtvae' : mtvae_obj, 
                          'mgcopula' : mgcopula_obj, 
+                         'mcrossinter' : mcrossinter_obj, 
                          }
         
         # 'mcrossinter' : mcrossinter_obj, 
@@ -258,13 +259,339 @@ def create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_t
     # pickle.dump(lime_time, open(save_dir+'/lime_time'+'.pkl','wb'))
 
     # mBase.logBestParams()
-   
+
+def create_baseExplainer(proj_name, global_model_name, x_train, x_test, y_train, y_test, df_indices, debug=False):
+    
+    save_dir = os.path.join(exp_dir,proj_name,global_model_name)
+    
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+        
+    global_model = pickle.load(open(proj_name+'_'+global_model_name+'_global_model.pkl','rb'))
+
+    indep = x_test.columns
+    dep = 'defect'
+    class_label = ['clean', 'defect']
+    
+
+    #################################
+    # for baseline
+    # note: 6 is index of 'self' feature
+    lime_explainer = LimeTabularExplainer(x_train.values, categorical_features=[6],
+                                      feature_names=indep, class_names=class_label, 
+                                      random_state=0)
+    #################################
+
+    # for my testing 
+    mBase = MohitBase(x_train, y_train, indep, dep, global_model, class_label)
+
+
+    feature_df = x_test.loc[df_indices]
+    test_label = y_test.loc[df_indices]
+
+    mBase_time = []
+    pyExp_time = []
+    lime_time= []
+    
+    def _preparePyExplainerObj(usePreTrainedData=False, preTrainedData=None, modelType ='py', search_function='ctgan') : 
+        if debug : 
+            print("\t..starting Mohit-base with search function = ", search_function , ' and modelType = ', modelType)
+
+        # print(type(X_explain))
+        start = time.time()   
+        mBase_obj = mBase.explain(X_explain,
+                                   y_explain,
+                                   modelType = modelType, 
+                                   search_function = search_function,
+                                   usePreTrainedData = usePreTrainedData,
+                                   preTrainedData = preTrainedData,
+                                   debug=debug)
+        end = time.time()
+        elapsed = end - start
+        
+        if debug : 
+            print("\t..done Mohit-base with search function = ", search_function)
+
+        # add row index to the object 
+        mBase_obj['commit_id'] = row_index
+        # add time stamp to the object
+        mBase_obj['time'] = elapsed
+
+        if modelType == 'py' : 
+            mBase_obj['local_model'] = mBase_obj['local_rulefit_model']
+        del mBase_obj['local_rulefit_model']
+
+        return mBase_obj
+
+    for i in tqdm(range(0,len(feature_df))):
+        X_explain = feature_df.iloc[[i]]
+
+        # print(type(X_explain))
+        y_explain = test_label.iloc[[i]]
+
+        row_index = str(X_explain.index[0])
+
+        if debug : 
+            print("\nFor Row Index", row_index)
+
+
+        #########   LIME  #############
+        if debug : 
+            print("\tstarting lime")
+        X_explain = feature_df.iloc[i] # to prevent error in LIME
+        start = time.time()
+        exp, synt_inst, synt_inst_for_local_model, selected_feature_indices, local_model = lime_explainer.explain_instance(X_explain, global_model.predict_proba, num_samples=5000)
+
+        lime_obj = {}
+        lime_obj['rule'] = exp
+        lime_obj['synthetic_instance_for_global_model'] = synt_inst
+        lime_obj['synthetic_instance_for_lobal_model'] = synt_inst_for_local_model
+        lime_obj['local_model'] = local_model
+        lime_obj['selected_feature_indeces'] = selected_feature_indices
+        lime_obj['commit_id'] = row_index
+        end = time.time()
+        elapsed = end - start
+        lime_time.append(elapsed)
+        # add time stamp to the object
+        lime_obj['time'] = elapsed
+        if debug : 
+            print("\t..done lime")
+        #################################
+
+        
+        
+        if debug : 
+            print('done lime now towards further modules')
+        preTrainedAllData = pickle.load(open(os.path.join(d_dir,proj_name,global_model_name,'syndata_'+row_index+'.pkl'),'rb'))
+
+        X_explain = feature_df.iloc[[i]]
+        
+        if debug : 
+            print('pretrained data set loaded. ')
+        # #################################
+        py_ctgan_obj = _preparePyExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['ctgan'],modelType = 'py' , search_function='ctgan') 
+        py_copulagan_obj = _preparePyExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['copulagan'],modelType = 'py' ,search_function='copulagan')
+        py_tvae_obj = _preparePyExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['tvae'],modelType = 'py' ,search_function='tvae')
+        py_gcopula_obj = _preparePyExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['gcopula'],modelType = 'py' ,search_function='gcopula')
+        py_crossinter_obj = _preparePyExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['crossoverinterpolation'],modelType = 'py' ,search_function='crossoverinterpolation')
+        '''
+        ################### When All Explainers Created ########## 
+        # create all explainer object
+        all_explainer = {'pyExplainer':pyExp_obj, 'LIME': lime_obj, 'MBase' : mBase_obj}
+        
+        # write the updated object. 
+        pickle.dump(all_explainer, open(save_dir+'/all_explainer_'+row_index+'.pkl','wb'))
+        ################### When All Explainers Created ########## 
+        '''
+
+        # update the object
+        all_explainer = {'pyexp':py_crossinter_obj, 
+                         'LIME': lime_obj, 
+                         'py_ctgan' : py_ctgan_obj, 
+                         'py_copulagan' : py_copulagan_obj, 
+                         'py_tvae' : py_tvae_obj, 
+                         'py_gcopula' : py_gcopula_obj 
+                         }
+        
+        # 'mcrossinter' : mcrossinter_obj, 
+
+        
+        # write the updated object. 
+        pickle.dump(all_explainer, open(save_dir+'/all_explainer_'+row_index+'.pkl','wb'))
+        ################### Loading Already Trained Files ########## 
+        # '''
+
+        if debug : 
+            break
+
+        # print('finished {}/{} commits'.format(str(i+1), str(len(feature_df))))
+
+    # pickle.dump(mBase_time, open(save_dir+'/mBase_time'+'.pkl','wb'))
+    # pickle.dump(pyExp_time, open(save_dir+'/pyExp_time'+'.pkl','wb'))
+    # pickle.dump(lime_time, open(save_dir+'/lime_time'+'.pkl','wb'))
+
+    # mBase.logBestParams()
+
+def create_mExplainer(proj_name, global_model_name, x_train, x_test, y_train, y_test, df_indices, debug=False):
+    
+    save_dir = os.path.join(exp_dir,proj_name,global_model_name)
+    
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+        
+    global_model = pickle.load(open(proj_name+'_'+global_model_name+'_global_model.pkl','rb'))
+
+    indep = x_test.columns
+    dep = 'defect'
+    class_label = ['clean', 'defect']
+    
+
+    #################################
+    # for authors apporach
+    pyExp = PyExplainer(x_train, y_train, indep, dep, global_model, class_label)
+
+    # for baseline
+    # note: 6 is index of 'self' feature
+    lime_explainer = LimeTabularExplainer(x_train.values, categorical_features=[6],
+                                      feature_names=indep, class_names=class_label, 
+                                      random_state=0)
+    #################################
+
+    # for my testing 
+    mBase = MohitBase(x_train, y_train, indep, dep, global_model, class_label)
+
+
+    feature_df = x_test.loc[df_indices]
+    test_label = y_test.loc[df_indices]
+
+    mBase_time = []
+    pyExp_time = []
+    lime_time= []
+    
+    def _prepareExplainerObj(usePreTrainedData=False, preTrainedData=None, search_function='ctgan') : 
+        if debug : 
+            print("\t..starting Mohit-base with search function = ", search_function)
+
+        start = time.time()   
+        mBase_obj = mBase.explain(X_explain,
+                                   y_explain,
+                                   modelType = "nc", 
+                                   cv = 1,
+                                   search_function = search_function,
+                                   usePreTrainedData = usePreTrainedData,
+                                   preTrainedData = preTrainedData,
+                                   debug=debug)
+        end = time.time()
+        elapsed = end - start
+        
+        if debug : 
+            print("\t..done Mohit-base with search function = ", search_function)
+
+        # add row index to the object 
+        mBase_obj['commit_id'] = row_index
+        # add time stamp to the object
+        mBase_obj['time'] = elapsed
+
+        return mBase_obj
+
+    for i in tqdm(range(0,len(feature_df))):
+        X_explain = feature_df.iloc[[i]]
+        y_explain = test_label.iloc[[i]]
+
+        row_index = str(X_explain.index[0])
+
+        if debug : 
+            print("\nFor Row Index", row_index)
+
+
+        #########   LIME  #############
+        if debug : 
+            print("\tstarting lime")
+        X_explain = feature_df.iloc[i] # to prevent error in LIME
+        start = time.time()
+        exp, synt_inst, synt_inst_for_local_model, selected_feature_indices, local_model = lime_explainer.explain_instance(X_explain, global_model.predict_proba, num_samples=5000)
+
+        lime_obj = {}
+        lime_obj['rule'] = exp
+        lime_obj['synthetic_instance_for_global_model'] = synt_inst
+        lime_obj['synthetic_instance_for_lobal_model'] = synt_inst_for_local_model
+        lime_obj['local_model'] = local_model
+        lime_obj['selected_feature_indeces'] = selected_feature_indices
+        lime_obj['commit_id'] = row_index
+        end = time.time()
+        elapsed = end - start
+        lime_time.append(elapsed)
+        # add time stamp to the object
+        lime_obj['time'] = elapsed
+        if debug : 
+            print("\t..done lime")
+        #################################
+
+
+        
+        ##########  PyExplainer ############
+        if debug : 
+            print("\tstarting pyexplainer")
+        start = time.time()
+        pyExp_obj = pyExp.explain(X_explain,
+                                y_explain,
+                                search_function = 'CrossoverInterpolation')
+        end = time.time()
+        elapsed = end - start
+        pyExp_time.append(elapsed)
+        if debug : 
+            print("\t..done pyexplainer")
+
+        # add row index to the object 
+        pyExp_obj['commit_id'] = row_index
+        # add time stamp to the object
+        pyExp_obj['time'] = elapsed
+
+        # because I don't want to change key name in another evaluation file
+        pyExp_obj['local_model'] = pyExp_obj['local_rulefit_model']
+        del pyExp_obj['local_rulefit_model']
+        #################################
+        
+        preTrainedAllData = pickle.load(open(os.path.join(d_dir,proj_name,global_model_name,'syndata_'+row_index+'.pkl'),'rb'))
+
+        # #################################
+        mctgan_obj = _prepareExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['ctgan'],search_function='ctgan') 
+        mcopulagan_obj = _prepareExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['copulagan'],search_function='copulagan')
+        mtvae_obj = _prepareExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['tvae'],search_function='tvae')
+        mgcopula_obj = _prepareExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['gcopula'],search_function='gcopula')
+        mcrossinter_obj = _prepareExplainerObj(usePreTrainedData=True, preTrainedData=preTrainedAllData['crossoverinterpolation'],search_function='crossoverinterpolation')
+        '''
+        ################### When All Explainers Created ########## 
+        # create all explainer object
+        all_explainer = {'pyExplainer':pyExp_obj, 'LIME': lime_obj, 'MBase' : mBase_obj}
+        
+        # write the updated object. 
+        pickle.dump(all_explainer, open(save_dir+'/all_explainer_'+row_index+'.pkl','wb'))
+        ################### When All Explainers Created ########## 
+        '''
+
+        # '''
+        ################### Loading Already Trained Files ########## 
+        # load already trained file, from previous executions. 
+        all_explainer = pickle.load(open(save_dir+'/all_explainer_'+row_index+'.pkl','rb'))
+
+        # update the object
+        all_explainer = {'pyexp':pyExp_obj, 
+                         'LIME': lime_obj, 
+                         'mctgan' : mctgan_obj, 
+                         'mcopulagan' : mcopulagan_obj, 
+                         'mtvae' : mtvae_obj, 
+                         'mgcopula' : mgcopula_obj, 
+                         'mcrossinter' : mcrossinter_obj, 
+                         }
+        
+        # 'mcrossinter' : mcrossinter_obj, 
+
+        
+        # write the updated object. 
+        pickle.dump(all_explainer, open(save_dir+'/all_explainer_'+row_index+'.pkl','wb'))
+        ################### Loading Already Trained Files ########## 
+        # '''
+
+        if debug : 
+            break
+
+        # print('finished {}/{} commits'.format(str(i+1), str(len(feature_df))))
+
+    # pickle.dump(mBase_time, open(save_dir+'/mBase_time'+'.pkl','wb'))
+    # pickle.dump(pyExp_time, open(save_dir+'/pyExp_time'+'.pkl','wb'))
+    # pickle.dump(lime_time, open(save_dir+'/lime_time'+'.pkl','wb'))
+
+    # mBase.logBestParams()
+
+
 def train_explainer(proj_name, global_model_name,debug=False):
     x_train, x_test, y_train, y_test = prepare_data(proj_name, mode = 'all')
 
     correctly_predict_indice = get_correctly_predicted_defective_commit_indices(proj_name, global_model_name, x_test, y_test)
     correctly_predict_indice = set(correctly_predict_indice)
-    create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_test, correctly_predict_indice,debug=debug)
+    # create_explainer(proj_name, global_model_name, x_train, x_test, y_train, y_test, correctly_predict_indice,debug=debug)
+    create_baseExplainer(proj_name, global_model_name, x_train, x_test, y_train, y_test, correctly_predict_indice,debug=debug)
 
 
 def _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_train, y_test, df_indices, synthesizer_type=[], debug=False):
@@ -299,11 +626,21 @@ def _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_trai
         if debug : 
             print("\nFor Row Index", row_index)
 
+        if len(synthesizer_type) == 0 or 'real' in synthesizer_type : 
+            ########## Extracting Real Neighbourhood ############
+            if debug : 
+                print("\tObtaining Real data in the Neighbourhood for the Sample under examination")
+            readData = mBase.provideNeighbourhood(X_explain, y_explain, debug=debug)
+            combined_data_obj['real'] = readData
+            if debug : 
+                print("\t..Real Neighbourhood extracted")
+            ########## Extracting Real Neighbourhood ############
+
 
         if len(synthesizer_type) == 0 or 'ctgan' in synthesizer_type : 
             ########## Generating Data Using CTGan ############
             if debug : 
-                print("\tstarting Mohit-base CTGa")
+                print("\tstarting Mohit-base CTGan")
             if i == 0 : 
                 time_dict['ctgan'] = []
 
@@ -316,9 +653,14 @@ def _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_trai
             combined_data_obj['ctgan'] = sampledData
 
             if debug : 
-                print("\t..done Mohit-base CTGa")
+                print("\t..done Mohit-base CTGan")
+                
+            if len(synthesizer_type) == 1 and debug : 
+                break
             ########## Generating Data Using CTGan ############
+
         
+
         if len(synthesizer_type) == 0 or 'copulagan' in synthesizer_type : 
             ########## Generating Data Using copulagan ############
             if debug : 
@@ -379,7 +721,7 @@ def _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_trai
         if len(synthesizer_type) == 0 or 'crossoverinterpolation' in synthesizer_type : 
             ########## Generating Data Using crossover_interpolation ############
             if debug : 
-                print("\tstarting Pyexp")
+                print("\tstarting crossoverinterpolation")
             if i == 0 : 
                 time_dict['crossoverinterpolation'] = []
 
@@ -389,16 +731,16 @@ def _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_trai
             elapsed = end - start
             sampledData['time'] = elapsed
             time_dict['crossoverinterpolation'].append(elapsed)
-            combined_data_obj['pyexp'] = sampledData
+            combined_data_obj['crossoverinterpolation'] = sampledData
 
             if debug : 
-                print("\t..done Pyexp")
+                print("\t..done crossoverinterpolation")
             ########## Generating Data Using crossover_interpolation ############
 
         if len(synthesizer_type) == 0 or 'randomperturbation' in synthesizer_type : 
             ########## Generating Data Using random_perturbation ############
             if debug : 
-                print("\tstarting lime")
+                print("\tstarting randomperturbation")
             if i == 0 : 
                 time_dict['randomperturbation'] = []
 
@@ -411,17 +753,20 @@ def _create_synthetic_data(proj_name, global_model_name, x_train, x_test, y_trai
             combined_data_obj['lime'] = sampledData
 
             if debug : 
-                print("\t..done lime")
+                print("\t..done randomperturbation")
             ########## Generating Data Using random_perturbation ############
         
-        # write the updated object. 
-        old_data = pickle.load(open(save_dir+'/syndata_'+row_index+'.pkl','rb'))
-        combined_data_obj['lime'] = old_data['lime']
-        combined_data_obj['pyexp'] = old_data['pyexp']
-        try : 
-            combined_data_obj['ctgan'] = old_data['mbase']
-        except : 
-            combined_data_obj['ctgan'] = old_data['ctgan']
+        # ########## using old trained data ###############
+        # old_data = pickle.load(open(save_dir+'/syndata_'+row_index+'.pkl','rb'))
+        # combined_data_obj['lime'] = old_data['lime']
+        # combined_data_obj['pyexp'] = old_data['pyexp']
+        # try : 
+        #     combined_data_obj['ctgan'] = old_data['mbase']
+        # except : 
+        #     combined_data_obj['ctgan'] = old_data['ctgan']
+        # ############ using old trained data ###############
+
+
         pickle.dump(combined_data_obj, open(save_dir+'/syndata_'+row_index+'.pkl','wb'))
 
         if debug : 
@@ -442,6 +787,11 @@ proj_name = sys.argv[1]
 proj_name = proj_name.lower()
 global_model = sys.argv[2]
 global_model = global_model.upper()
+debug = (sys.argv[3] == '1' ) # value 1 means, enabled in debug mode.
+
+if debug : 
+    print("launched in debug mode")
+
 
 if proj_name not in ['openstack','qt'] or global_model not in ['RF','LR']:
     print('project name must be "openstack" or "qt".')
@@ -451,18 +801,19 @@ else:
     print(proj_name, global_model)
     print('training global model')
     train_global_model_runner(proj_name, global_model)
-    print('finished training global model')
+    print('\tfinished training global model')
     
 
     # ########### For Just Creating Synthetic Data ############
     # print('creating custom datasets')
-    # create_synthetic_data(proj_name, global_model,synthesizer_type = ['gcopula', 'tvae', 'copulagan'] , debug=False)
-    # print('finished creation of custom datasets')
+    # # create_synthetic_data(proj_name, global_model,synthesizer_type = [] , debug=debug)
+    # create_synthetic_data(proj_name, global_model,synthesizer_type = [] , debug=debug)
+    # print('\tfinished creation of custom datasets')
 
 
     ########### For Creation of Explainers ###############
     print('training explainers')
-    train_explainer(proj_name, global_model,debug=False)
-    print('finished training explainers')
+    train_explainer(proj_name, global_model,debug=debug)
+    print('\tfinished training explainers')
 
 

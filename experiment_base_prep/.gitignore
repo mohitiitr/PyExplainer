@@ -1,5 +1,6 @@
 push_file.sh
 Untitled.ipynb
+test.*
 openstack_global_model.pkl
 qt_global_model.pkl
 test_AIX360_model.ipynb
@@ -30,3 +31,4 @@ synthetic_data/
 vis.ipynb
 vis.zip
 /vis
+
