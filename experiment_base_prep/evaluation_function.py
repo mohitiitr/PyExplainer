@@ -152,51 +152,48 @@ def get_global_model_evaluation_result(proj_name):
     lr_prediction_df = get_prediction_result_df(proj_name, 'lr')
     eval_global_model(proj_name, lr_prediction_df)
 
+####### RQ1 Evaluation #####
 ###############################################################################
-def rq1_syndata_test(proj_name, global_model_name, debug=False):
+def rq1_preprocess(proj_name, global_model_name, debug=False):
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
     all_eval_result = pd.DataFrame()
     
-
-    def prepareSeries(data_dict, data_model) : 
+    def prepareSeries(data_dict, data_model, lime_d, pyexp_d) : 
         synthetic_data = data_dict['synthetic_data'].loc[:, indep].values
         euc_dist = euclidean_distances(X_explain.values, synthetic_data)
         dist_mean, dist_med = aggregate_list(euc_dist)
-        serie = pd.Series(data=[proj_name, row_index, data_model, dist_med])
+        lime_score = 0 if data_model == 'lime' else  1 - dist_med/lime_d 
+        pyexp_score = 0 if (data_model == 'lime' or data_model =='pyexp') else 1 - dist_med/pyexp_d
+        serie = pd.Series(data=[proj_name, row_index, data_model, dist_med, lime_score,pyexp_score])
         return serie
 
     for i in tqdm(range(0,len(feature_df))):
 
         X_explain = feature_df.iloc[[i]]
-        # X_explain = feature_df.loc[['c70350bfa58ced11e7b346f9ad3ba85b0617e8f8']]
-        # X_explain = feature_df[feature_df['commit_id'] == 'c70350bfa58ced11e7b346f9ad3ba85b0617e8f8']
-
-        # print(X_explain)
         row_index = str(X_explain.index[0])
-
-        # print(feature_df. columns. values. tolist())
-        # print(X_explain. columns. values. tolist())
-        # print(type(X_explain.index[0]))
     
         data_obj = pickle.load(open(os.path.join(d_dir,proj_name,global_model_name,'syndata_'+row_index+'.pkl'),'rb'))
        
-        all_eval_result = all_eval_result.append(  prepareSeries(data_obj['pyexp'],'pyexp') ,ignore_index=True)
-        all_eval_result = all_eval_result.append(  prepareSeries(data_obj['lime'],'lime') ,ignore_index=True)
-        all_eval_result = all_eval_result.append(  prepareSeries(data_obj['ctgan'],'ctgan') ,ignore_index=True)
-        all_eval_result = all_eval_result.append(  prepareSeries(data_obj['tvae'],'tvae') ,ignore_index=True)
-        all_eval_result = all_eval_result.append(  prepareSeries(data_obj['gcopula'],'gcopula') ,ignore_index=True)
-        all_eval_result = all_eval_result.append(  prepareSeries(data_obj['copulagan'],'copulagan') ,ignore_index=True)
+        lime_serie =  prepareSeries(data_obj['lime'],'lime',0,0)
+        lime_d = lime_serie[3]
+        pyexp_serie = prepareSeries(data_obj['crossoverinterpolation'],'pyexp',lime_d,0)
+        pyexp_d = pyexp_serie[3]
 
+        all_eval_result = all_eval_result.append( lime_serie ,ignore_index=True)
+        all_eval_result = all_eval_result.append( pyexp_serie ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['ctgan'],'ctgan', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['tvae'],'tvae', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['gcopula'],'gcopula', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['copulagan'],'copulagan', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
 
         if debug : 
             break
         
-    all_eval_result.columns =['project', 'commit id', 'method', 'euc_dist_med']
-    
+    all_eval_result.columns =['project', 'commit id', 'method', 'euc_dist_med','lime_similarity_score', 'pyexp_similarity_score']
     all_eval_result.to_csv(result_dir+'RQ1_syndata_'+proj_name+'_'+global_model_name+'.csv',index=False)
-    print('finished RQ1 of',proj_name,', globla model is',global_model_name)
+    print('finished RQ1 Preprocess of',proj_name,', globla model is',global_model_name)
 
-def show_rq1_syndata_ed_result() :
+def show_rq1_images() :
     openstack_rf = pd.read_csv(result_dir+'RQ1_syndata_openstack_RF.csv')
     qt_rf = pd.read_csv(result_dir+'RQ1_syndata_qt_RF.csv')
     result_rf = pd.concat([openstack_rf, qt_rf])
@@ -223,11 +220,10 @@ def show_rq1_syndata_ed_result() :
     plt.show()
     
     all_result.to_csv(result_dir+'/RQ1_syndata.csv',index=False)
-    
-    fig.savefig(fig_dir+'RQ1_sample.png')
+    fig.savefig(fig_dir+'RQ1.png')
 
-def show_rq1_syndata_time_result() :
-    openstack_rf = pd.read_csv(d_dir+'RQ1_syndata_openstack_RF.csv')
+def show_rq1_scores(): 
+    openstack_rf = pd.read_csv(result_dir+'RQ1_syndata_openstack_RF.csv')
     qt_rf = pd.read_csv(result_dir+'RQ1_syndata_qt_RF.csv')
     result_rf = pd.concat([openstack_rf, qt_rf])
     result_rf['global_model'] = 'RF'
@@ -238,23 +234,80 @@ def show_rq1_syndata_time_result() :
     result_lr['global_model'] = 'LR'
     
     all_result = pd.concat([result_rf, result_lr])
+    
+    # group the data based on the 'method' feature and find the min/max values of features 5 and 6 for each group
+    grouped_data = all_result.groupby('method').agg({'lime_similarity_score': ['min', 'max'], 'pyexp_similarity_score': ['min', 'max']})
 
-    fig, axs = plt.subplots(1,2, figsize=(10,6))
+    # print the resulting grouped data
+    print(grouped_data) 
 
-    axs[0].set_title('RF')
-    axs[1].set_title('LR')
+####### RQ2 Evaluation #####
+###############################################################################
+def rq2_preprocess(proj_name, global_model_name, debug=False):
+    global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
+    all_eval_result = pd.DataFrame()
+    time_result = pd.DataFrame()
     
-    axs[0].set(ylim=(0, 5000))
-    axs[1].set(ylim=(0, 5000))
     
-    sns.boxplot(data=result_rf, x='project', y='euc_dist_med', hue='method', ax=axs[0])
-    sns.boxplot(data=result_lr, x='project', y='euc_dist_med', hue='method', ax=axs[1])
+    def prepareSeries(data_dict, data_model, lime_d, pyexp_d) : 
+        synthetic_data = data_dict['synthetic_data'].loc[:, indep].values
+        euc_dist = euclidean_distances(X_explain.values, synthetic_data)
+        dist_mean, dist_med = aggregate_list(euc_dist)
+        lime_score = 0 if data_model == 'lime' else  1 - dist_med/lime_d 
+        pyexp_score = 0 if (data_model == 'lime' or data_model =='pyexp') else 1 - dist_med/pyexp_d
+        serie = pd.Series(data=[proj_name, row_index, data_model, dist_med, lime_score,pyexp_score])
+        return serie
     
-    plt.show()
+    def prepareTimeSeries(data_dict, data_model) : 
+        time = data_dict['time']
+        serie = pd.Series(data=[proj_name, row_index, data_model, time])
+        return serie
+
+    for i in tqdm(range(0,len(feature_df))):
+
+        X_explain = feature_df.iloc[[i]]
+        row_index = str(X_explain.index[0])
     
-    all_result.to_csv(result_dir+'/RQ1_syndata.csv',index=False)
+        data_obj = pickle.load(open(os.path.join(d_dir,proj_name,global_model_name,'syndata_'+row_index+'.pkl'),'rb'))
+       
+        lime_serie =  prepareSeries(data_obj['lime'],'lime',0,0)
+        lime_d = lime_serie[3]
+        pyexp_serie = prepareSeries(data_obj['crossoverinterpolation'],'pyexp',lime_d,0)
+        pyexp_d = pyexp_serie[3]
+
+        all_eval_result = all_eval_result.append( lime_serie ,ignore_index=True)
+        all_eval_result = all_eval_result.append( pyexp_serie ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['ctgan'],'ctgan', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['tvae'],'tvae', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['gcopula'],'gcopula', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['copulagan'],'copulagan', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
+
+        time_result = time_result.append( prepareTimeSeries(data_obj['crossoverinterpolation'],'pyexp') ,ignore_index=True)
+        time_result = time_result.append( prepareTimeSeries(data_obj['lime'],'lime') ,ignore_index=True)
+        time_result = time_result.append( prepareTimeSeries(data_obj['ctgan'],'ctgan') ,ignore_index=True)
+        time_result = time_result.append( prepareTimeSeries(data_obj['tvae'],'tvae') ,ignore_index=True)
+        time_result = time_result.append( prepareTimeSeries(data_obj['gcopula'],'gcopula') ,ignore_index=True)
+        time_result = time_result.append( prepareTimeSeries(data_obj['copulagan'],'copulagan') ,ignore_index=True)
+
+
+        if debug : 
+            break
+        
+    all_eval_result.columns =['project', 'commit id', 'method', 'euc_dist_med']
+    time_result.columns =['project', 'commit id', 'method', 'time']
     
-    fig.savefig(fig_dir+'RQ1_sample.png')
+    all_eval_result.to_csv(result_dir+'RQ1_syndata_'+proj_name+'_'+global_model_name+'.csv',index=False)
+    time_result.to_csv(result_dir+'RQ2_syndata_time'+proj_name+'_'+global_model_name+'.csv',index=False)
+    print('finished SynData Preprocess of',proj_name,', globla model is',global_model_name)
+
+
+
+
+
+
+
+
+
 
 ###############################################################################
 def rq1_eval_test(proj_name, global_model_name):
