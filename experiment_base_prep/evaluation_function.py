@@ -158,13 +158,14 @@ def rq1_preprocess(proj_name, global_model_name, debug=False):
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
     all_eval_result = pd.DataFrame()
     
-    def prepareSeries(data_dict, data_model, lime_d, pyexp_d) : 
+    def prepareSeries(data_dict, data_model, lime_similarityval, pyexp_similarityval) : 
         synthetic_data = data_dict['synthetic_data'].loc[:, indep].values
         euc_dist = euclidean_distances(X_explain.values, synthetic_data)
         dist_mean, dist_med = aggregate_list(euc_dist)
-        lime_score = 0 if data_model == 'lime' else  1 - dist_med/lime_d 
-        pyexp_score = 0 if (data_model == 'lime' or data_model =='pyexp') else 1 - dist_med/pyexp_d
-        serie = pd.Series(data=[proj_name, row_index, data_model, dist_med, lime_score,pyexp_score])
+        similarity = 1 / dist_mean
+        lime_score = 0 if data_model == 'lime' else  (similarity/lime_similarityval - 1)*100
+        pyexp_score = 0 if (data_model == 'lime' or data_model =='pyexp') else (similarity/pyexp_similarityval - 1)*100
+        serie = pd.Series(data=[proj_name, row_index, data_model, dist_med, similarity, lime_score, pyexp_score])
         return serie
 
     for i in tqdm(range(0,len(feature_df))):
@@ -175,21 +176,21 @@ def rq1_preprocess(proj_name, global_model_name, debug=False):
         data_obj = pickle.load(open(os.path.join(d_dir,proj_name,global_model_name,'syndata_'+row_index+'.pkl'),'rb'))
        
         lime_serie =  prepareSeries(data_obj['lime'],'lime',0,0)
-        lime_d = lime_serie[3]
-        pyexp_serie = prepareSeries(data_obj['crossoverinterpolation'],'pyexp',lime_d,0)
-        pyexp_d = pyexp_serie[3]
+        lime_similarityval = lime_serie[4]
+        pyexp_serie = prepareSeries(data_obj['crossoverinterpolation'],'pyexp',lime_similarityval,0)
+        pyexp_similarityval = pyexp_serie[4]
 
         all_eval_result = all_eval_result.append( lime_serie ,ignore_index=True)
         all_eval_result = all_eval_result.append( pyexp_serie ,ignore_index=True)
-        all_eval_result = all_eval_result.append( prepareSeries(data_obj['ctgan'],'ctgan', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
-        all_eval_result = all_eval_result.append( prepareSeries(data_obj['tvae'],'tvae', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
-        all_eval_result = all_eval_result.append( prepareSeries(data_obj['gcopula'],'gcopula', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
-        all_eval_result = all_eval_result.append( prepareSeries(data_obj['copulagan'],'copulagan', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['ctgan'],'ctgan', lime_similarityval, pyexp_similarityval) ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['tvae'],'tvae', lime_similarityval, pyexp_similarityval) ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['gcopula'],'gcopula', lime_similarityval, pyexp_similarityval) ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['copulagan'],'copulagan',lime_similarityval, pyexp_similarityval) ,ignore_index=True)
 
         if debug : 
             break
         
-    all_eval_result.columns =['project', 'commit id', 'method', 'euc_dist_med','lime_similarity_score', 'pyexp_similarity_score']
+    all_eval_result.columns =['project', 'commit id', 'method', 'euc_dist_med','similarity','lime_similarity_score', 'pyexp_similarity_score']
     all_eval_result.to_csv(result_dir+'RQ1_syndata_'+proj_name+'_'+global_model_name+'.csv',index=False)
     print('finished RQ1 Preprocess of',proj_name,', globla model is',global_model_name)
 
@@ -236,7 +237,7 @@ def show_rq1_scores():
     all_result = pd.concat([result_rf, result_lr])
     
     # group the data based on the 'method' feature and find the min/max values of features 5 and 6 for each group
-    grouped_data = all_result.groupby('method').agg({'lime_similarity_score': ['min', 'max'], 'pyexp_similarity_score': ['min', 'max']})
+    grouped_data = all_result.groupby('method').agg({'similarity':['mean'],'lime_similarity_score': ['min', 'mean', 'max'], 'pyexp_similarity_score': ['min','mean', 'max']})
 
     # print the resulting grouped data
     print(grouped_data) 
@@ -245,19 +246,8 @@ def show_rq1_scores():
 ###############################################################################
 def rq2_preprocess(proj_name, global_model_name, debug=False):
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
-    all_eval_result = pd.DataFrame()
     time_result = pd.DataFrame()
-    
-    
-    def prepareSeries(data_dict, data_model, lime_d, pyexp_d) : 
-        synthetic_data = data_dict['synthetic_data'].loc[:, indep].values
-        euc_dist = euclidean_distances(X_explain.values, synthetic_data)
-        dist_mean, dist_med = aggregate_list(euc_dist)
-        lime_score = 0 if data_model == 'lime' else  1 - dist_med/lime_d 
-        pyexp_score = 0 if (data_model == 'lime' or data_model =='pyexp') else 1 - dist_med/pyexp_d
-        serie = pd.Series(data=[proj_name, row_index, data_model, dist_med, lime_score,pyexp_score])
-        return serie
-    
+
     def prepareTimeSeries(data_dict, data_model) : 
         time = data_dict['time']
         serie = pd.Series(data=[proj_name, row_index, data_model, time])
@@ -269,185 +259,30 @@ def rq2_preprocess(proj_name, global_model_name, debug=False):
         row_index = str(X_explain.index[0])
     
         data_obj = pickle.load(open(os.path.join(d_dir,proj_name,global_model_name,'syndata_'+row_index+'.pkl'),'rb'))
-       
-        lime_serie =  prepareSeries(data_obj['lime'],'lime',0,0)
-        lime_d = lime_serie[3]
-        pyexp_serie = prepareSeries(data_obj['crossoverinterpolation'],'pyexp',lime_d,0)
-        pyexp_d = pyexp_serie[3]
 
-        all_eval_result = all_eval_result.append( lime_serie ,ignore_index=True)
-        all_eval_result = all_eval_result.append( pyexp_serie ,ignore_index=True)
-        all_eval_result = all_eval_result.append( prepareSeries(data_obj['ctgan'],'ctgan', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
-        all_eval_result = all_eval_result.append( prepareSeries(data_obj['tvae'],'tvae', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
-        all_eval_result = all_eval_result.append( prepareSeries(data_obj['gcopula'],'gcopula', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
-        all_eval_result = all_eval_result.append( prepareSeries(data_obj['copulagan'],'copulagan', lime_d=lime_d, pyexp_d=pyexp_d) ,ignore_index=True)
-
-        time_result = time_result.append( prepareTimeSeries(data_obj['crossoverinterpolation'],'pyexp') ,ignore_index=True)
         time_result = time_result.append( prepareTimeSeries(data_obj['lime'],'lime') ,ignore_index=True)
+        time_result = time_result.append( prepareTimeSeries(data_obj['crossoverinterpolation'],'pyexp') ,ignore_index=True)
         time_result = time_result.append( prepareTimeSeries(data_obj['ctgan'],'ctgan') ,ignore_index=True)
         time_result = time_result.append( prepareTimeSeries(data_obj['tvae'],'tvae') ,ignore_index=True)
         time_result = time_result.append( prepareTimeSeries(data_obj['gcopula'],'gcopula') ,ignore_index=True)
         time_result = time_result.append( prepareTimeSeries(data_obj['copulagan'],'copulagan') ,ignore_index=True)
 
-
         if debug : 
             break
-        
-    all_eval_result.columns =['project', 'commit id', 'method', 'euc_dist_med']
+
     time_result.columns =['project', 'commit id', 'method', 'time']
     
-    all_eval_result.to_csv(result_dir+'RQ1_syndata_'+proj_name+'_'+global_model_name+'.csv',index=False)
-    time_result.to_csv(result_dir+'RQ2_syndata_time'+proj_name+'_'+global_model_name+'.csv',index=False)
-    print('finished SynData Preprocess of',proj_name,', globla model is',global_model_name)
+    time_result.to_csv(result_dir+'RQ2_syndata_time_'+proj_name+'_'+global_model_name+'.csv',index=False)
+    print('finished RQ2 Preprocess of',proj_name,', globla model is',global_model_name)
 
-
-
-
-
-
-
-
-
-
-###############################################################################
-def rq1_eval_test(proj_name, global_model_name):
-    global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
-    all_eval_result = pd.DataFrame()
-    
-    for i in range(0,len(feature_df)):
-        X_explain = feature_df.iloc[[i]]
-
-        row_index = str(X_explain.index[0])
-
-        mpath = os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_'+row_index+'.pkl')
-        print(mpath)
-        mfile = open(mpath,'rb')
-        print(type(mpath))
-        exp_obj = pickle.load(mfile)
-        mfile.close()
-        
-        
-        # processing pyexplainer
-        py_exp = exp_obj['pyExplainer']
-        # this data can be used for both local and global model
-        py_exp_synthetic_data = py_exp['synthetic_data'].values
-
-        print(py_exp_synthetic_data)
-        break
-
-
-        # processing lime
-        lime_exp = exp_obj['LIME']
-        # this data can be used with global model only
-        lime_exp_synthetic_data = lime_exp['synthetic_instance_for_global_model']
-
-
-        # processing mohit nodeharvest
-        nh_exp = exp_obj['MBase']
-        nh_exp_synthetic_data = nh_exp['synthetic_data'].values
-        
-        py_exp_local_model = py_exp['local_model']
-        lime_exp_local_model = lime_exp['local_model']
-        nh_exp_local_model = nh_exp['local_model']
-
-
-        py_exp_global_pred = global_model.predict(py_exp_synthetic_data)
-        lime_exp_global_pred = global_model.predict(lime_exp_synthetic_data)
-        nh_exp_global_pred = global_model.predict(nh_exp_synthetic_data)
-
-        py_exp_dist = euclidean_distances(X_explain.values, py_exp_synthetic_data)
-        lime_dist = euclidean_distances(X_explain.values, lime_exp_synthetic_data)
-        nh_exp_dist = euclidean_distances(X_explain.values, nh_exp_synthetic_data)
-
-        py_exp_dist_mean, py_exp_dist_med = aggregate_list(py_exp_dist)
-        lime_exp_dist_mean, lime_exp_dist_med = aggregate_list(lime_dist)
-        nh_exp_dist_mean, nh_exp_dist_med = aggregate_list(nh_exp_dist)
-
-        py_exp_serie = pd.Series(data=[proj_name, row_index, 'pyExplainer',
-                                       py_exp_dist_med])
-        lime_exp_serie = pd.Series(data=[proj_name, row_index, 'LIME',
-                                         lime_exp_dist_med])
-        nh_exp_serie = pd.Series(data=[proj_name, row_index, 'mBase',
-                                       nh_exp_dist_med]) 
-        
-        all_eval_result = all_eval_result.append(py_exp_serie,ignore_index=True)
-        all_eval_result = all_eval_result.append(lime_exp_serie, ignore_index=True)
-        all_eval_result = all_eval_result.append(nh_exp_serie,ignore_index=True)
-        
-    all_eval_result.columns =['project', 'commit id', 'method', 'euc_dist_med']
-    
-    all_eval_result.to_csv(result_dir+'RQ1_'+proj_name+'_'+global_model_name+'.csv',index=False)
-    print('finished RQ1 of',proj_name,', globla model is',global_model_name)
-
-def rq1_eval(proj_name, global_model_name):
-    global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
-    all_eval_result = pd.DataFrame()
-    
-    for i in range(0,len(feature_df)):
-        X_explain = feature_df.iloc[[i]]
-
-        row_index = str(X_explain.index[0])
-
-        exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_'+row_index+'.pkl'),'rb'))
-        
-        
-        # processing pyexplainer
-        py_exp = exp_obj['pyExplainer']
-        # this data can be used for both local and global model
-        py_exp_synthetic_data = py_exp['synthetic_data'].values
-
-
-        # processing lime
-        lime_exp = exp_obj['LIME']
-        # this data can be used with global model only
-        lime_exp_synthetic_data = lime_exp['synthetic_instance_for_global_model']
-
-
-        # processing mohit nodeharvest
-        nh_exp = exp_obj['MBase']
-        nh_exp_synthetic_data = nh_exp['synthetic_data'].values
-        
-        py_exp_local_model = py_exp['local_model']
-        lime_exp_local_model = lime_exp['local_model']
-        nh_exp_local_model = nh_exp['local_model']
-
-
-        py_exp_global_pred = global_model.predict(py_exp_synthetic_data)
-        lime_exp_global_pred = global_model.predict(lime_exp_synthetic_data)
-        nh_exp_global_pred = global_model.predict(nh_exp_synthetic_data)
-
-        py_exp_dist = euclidean_distances(X_explain.values, py_exp_synthetic_data)
-        lime_dist = euclidean_distances(X_explain.values, lime_exp_synthetic_data)
-        nh_exp_dist = euclidean_distances(X_explain.values, nh_exp_synthetic_data)
-
-        py_exp_dist_mean, py_exp_dist_med = aggregate_list(py_exp_dist)
-        lime_exp_dist_mean, lime_exp_dist_med = aggregate_list(lime_dist)
-        nh_exp_dist_mean, nh_exp_dist_med = aggregate_list(nh_exp_dist)
-
-        py_exp_serie = pd.Series(data=[proj_name, row_index, 'pyExplainer',
-                                       py_exp_dist_med])
-        lime_exp_serie = pd.Series(data=[proj_name, row_index, 'LIME',
-                                         lime_exp_dist_med])
-        nh_exp_serie = pd.Series(data=[proj_name, row_index, 'mBase',
-                                       nh_exp_dist_med]) 
-        
-        all_eval_result = all_eval_result.append(py_exp_serie,ignore_index=True)
-        all_eval_result = all_eval_result.append(lime_exp_serie, ignore_index=True)
-        all_eval_result = all_eval_result.append(nh_exp_serie,ignore_index=True)
-        
-    all_eval_result.columns =['project', 'commit id', 'method', 'euc_dist_med']
-    
-    all_eval_result.to_csv(result_dir+'RQ1_'+proj_name+'_'+global_model_name+'.csv',index=False)
-    print('finished RQ1 of',proj_name,', globla model is',global_model_name)
-    
-def show_rq1_eval_result():
-    openstack_rf = pd.read_csv(result_dir+'RQ1_openstack_RF.csv')
-    qt_rf = pd.read_csv(result_dir+'RQ1_qt_RF.csv')
+def show_rq2_images() :
+    openstack_rf = pd.read_csv(result_dir+'RQ2_syndata_time_openstack_RF.csv')
+    qt_rf = pd.read_csv(result_dir+'RQ2_syndata_time_qt_RF.csv')
     result_rf = pd.concat([openstack_rf, qt_rf])
     result_rf['global_model'] = 'RF'
     
-    openstack_lr = pd.read_csv(result_dir+'RQ1_openstack_LR.csv')
-    qt_lr = pd.read_csv(result_dir+'RQ1_qt_LR.csv')
+    openstack_lr = pd.read_csv(result_dir+'RQ2_syndata_time_openstack_LR.csv')
+    qt_lr = pd.read_csv(result_dir+'RQ2_syndata_time_qt_LR.csv')
     result_lr = pd.concat([openstack_lr, qt_lr])
     result_lr['global_model'] = 'LR'
     
@@ -458,31 +293,104 @@ def show_rq1_eval_result():
     axs[0].set_title('RF')
     axs[1].set_title('LR')
     
-    axs[0].set(ylim=(0, 5000))
-    axs[1].set(ylim=(0, 5000))
+    axs[0].set(ylim=(0, 300))
+    axs[1].set(ylim=(0, 300))
     
-    sns.boxplot(data=result_rf, x='project', y='euc_dist_med', hue='method', ax=axs[0])
-    sns.boxplot(data=result_lr, x='project', y='euc_dist_med', hue='method', ax=axs[1])
+    sns.boxplot(data=result_rf, x='project', y='time', hue='method', ax=axs[0])
+    sns.boxplot(data=result_lr, x='project', y='time', hue='method', ax=axs[1])
     
     plt.show()
     
-    all_result.to_csv(result_dir+'/RQ1.csv',index=False)
+    all_result.to_csv(result_dir+'/RQ2_syndata.csv',index=False)
+    fig.savefig(fig_dir+'RQ2.png')
+
+def show_rq2_scores(): 
+    openstack_rf = pd.read_csv(result_dir+'RQ2_syndata_time_openstack_RF.csv')
+    qt_rf = pd.read_csv(result_dir+'RQ2_syndata_time_qt_RF.csv')
+    result_rf = pd.concat([openstack_rf, qt_rf])
+    result_rf['global_model'] = 'RF'
     
-    fig.savefig(fig_dir+'RQ1.png')
+    openstack_lr = pd.read_csv(result_dir+'RQ2_syndata_time_openstack_LR.csv')
+    qt_lr = pd.read_csv(result_dir+'RQ2_syndata_time_qt_LR.csv')
+    result_lr = pd.concat([openstack_lr, qt_lr])
+    result_lr['global_model'] = 'LR'
+    
+    all_result = pd.concat([result_rf, result_lr])
+    
+    # group the data based on the 'method' feature and find the min/max values of features 5 and 6 for each group
+    grouped_data = all_result.groupby('method').agg({'time': ['min','mean']})
+
+    print("gcopula is faster than pyexp by ",grouped_data.loc['pyexp', ('time', 'mean')]/grouped_data.loc['gcopula', ('time', 'mean')], " factors.")
+    print()
+
+    # print the resulting grouped data
+    print(grouped_data) 
 
 ###############################################################################
 def test_file_sync():
     print("Version 6.3.{}".format(datetime.now().strftime("%H:%M:%S")))
 
+####### RQ3 Evaluation #####
+###############################################################################
+def rq3_showsampledata(proj_name, global_model_name, debug=False):
+    global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
+    
+    print(feature_df.head())
+    summary = feature_df.describe()
+    print(summary)
+
+
+def rq3_preprocess(proj_name, global_model_name, debug=False):
+    global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
+    all_eval_result = pd.DataFrame()
+    
+    def processDuplicates(df ) : 
+       df_rounded = df.round(1)
+       duplicates = df_rounded.duplicated()
+       num_duplicates = duplicates.sum()
+       return num_duplicates
+
+    def prepareSeries(data_dict, data_model) : 
+        synthetic_data = data_dict['synthetic_data'].loc[:, indep].values
+        all_count = len(synthetic_data)
+        dup_count = processDuplicates(synthetic_data)
+
+        serie = pd.Series(data=[proj_name, row_index, data_model, dup_count/all_count*100])
+        return serie
+
+    for i in tqdm(range(0,len(feature_df))):
+
+        X_explain = feature_df.iloc[[i]]
+        row_index = str(X_explain.index[0])
+    
+        data_obj = pickle.load(open(os.path.join(d_dir,proj_name,global_model_name,'syndata_'+row_index+'.pkl'),'rb'))
+
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['lime']),ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['crossoverinterpolation'],'pyexp') ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['ctgan'],'ctgan') ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['tvae'],'tvae') , ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['gcopula'],'gcopula') ,ignore_index=True)
+        all_eval_result = all_eval_result.append( prepareSeries(data_obj['copulagan'],'copulagan') ,ignore_index=True)
+
+        if debug : 
+            break
+        
+    all_eval_result.columns =['project', 'commit id', 'method', 'percent_duplicates']
+    all_eval_result.to_csv(result_dir+'RQ3_syndata_'+proj_name+'_'+global_model_name+'.csv',index=False)
+    print('finished RQ1 Preprocess of',proj_name,', globla model is',global_model_name)
+
+
+####### RQ4 Evaluation #####
 ############################################################################### 
-def rq2_eval(proj_name, global_model_name, debug = False):
+list_of_models = ['lime' , 'pyexp', 'py_ctgan', 'py_copulagan', 'py_tvae', 'py_gcopula', 'mctgan', 'mcopulagan', 'mtvae', 'mgcopula' , 'mcrossinter', 'mr_ctgan', 'mr_copulagan', 'mr_tvae', 'mr_gcopula', 'mr_crossinter' ]
+
+def rq4_eval(proj_name, global_model_name, debug = False):
     global_model_name = global_model_name.upper()
     
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
     all_eval_result = pd.DataFrame()
-    
-    all_labels = {'pyexp' : [] , 'lime' : [] , 'nh' : [] , 'mctgan' : [], 'mgcopula' : [] , 'mtvae' : [], 'mcopulagan' : []}
-    all_probs = {'pyexp' : [] , 'lime' : [] , 'nh' : [] , 'mctgan' : [], 'mgcopula' : [] , 'mtvae' : [], 'mcopulagan' : []}
+    all_labels = {'lime' : []}
+    all_probs = {'lime' : []}
 
     def _prepareSerie(exp, exp_name) : 
         synthetic_data = exp['synthetic_data'].values # synthetic data to work upon
@@ -494,8 +402,15 @@ def rq2_eval(proj_name, global_model_name, debug = False):
         local_prob_inter = local_model.predict_proba(synthetic_data) 
         local_prob = local_prob_inter[:,1] # proba for local model 
 
-        all_labels[exp_name].extend(list(global_pred)) # store for later use
-        all_probs[exp_name].extend(list(local_prob)) # store for later use
+        if  exp_name in all_labels.keys() : 
+            all_labels[exp_name].extend(list(global_pred)) # store for later use
+        else : 
+            all_labels[exp_name] = list(global_pred) # store for later use
+
+        if  exp_name in all_probs.keys() : 
+            all_probs[exp_name].extend(list(local_prob)) # store for later use
+        else :
+            all_probs[exp_name] = list(local_prob) # store for later use
 
 
         exp_auc = roc_auc_score(global_pred, local_prob) # roc auc 
@@ -533,48 +448,68 @@ def rq2_eval(proj_name, global_model_name, debug = False):
         lime_auc = roc_auc_score(lime_exp_global_pred, lime_exp_local_prob)
         lime_f1 = f1_score(lime_exp_global_pred, lime_exp_local_pred)
 
-        lime_exp_serie = pd.Series(data=[proj_name, row_index, 'LIME', lime_auc, lime_f1])
+        lime_exp_serie = pd.Series(data=[proj_name, row_index, 'lime', lime_auc, lime_f1])
 
         all_eval_result = all_eval_result.append(lime_exp_serie, ignore_index=True)
         ######### Processing of Line happens Little different so keep it separate ##########
         
         
-        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['pyExplainer'], 'pyexp'),ignore_index=True) # for 'PyExplainer'
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['pyexp'], 'pyexp'),ignore_index=True) # for 'PyExplainer' with crossinter
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['py_ctgan'], 'py_ctgan'),ignore_index=True) # for 'PyExplainer' with ctgan
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['py_copulagan'], 'py_copulagan'),ignore_index=True) # for 'PyExplainer' with copulagan
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['py_tvae'], 'py_tvae'),ignore_index=True) # for 'PyExplainer' with tvae
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['py_gcopula'], 'py_gcopula'),ignore_index=True) # for 'PyExplainer' with gcopula
+
+        exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_mnc'+row_index+'.pkl'),'rb'))     
+
         all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mctgan'], 'mctgan'),ignore_index=True) # for 'mctgan'
         all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mcopulagan'], 'mcopulagan'),ignore_index=True) # for 'mcopulagan'
         all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mtvae'], 'mtvae'),ignore_index=True) # for 'mtvae'
         all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mgcopula'], 'mgcopula'),ignore_index=True) # for 'mgcopula'
-        # all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mcrossinter'], 'mcrossinter'),ignore_index=True) # for 'mcrossinter'
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mcrossinter'], 'mcrossinter'),ignore_index=True) # for 'mcrossinter'
+
+        exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_mnr'+row_index+'.pkl'),'rb'))     
+
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mctgan'], 'mr_ctgan'),ignore_index=True) # for 'mctgan'
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mcopulagan'], 'mr_copulagan'),ignore_index=True) # for 'mcopulagan'
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mtvae'], 'mr_tvae'),ignore_index=True) # for 'mtvae'
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mgcopula'], 'mr_gcopula'),ignore_index=True) # for 'mgcopula'
+        all_eval_result = all_eval_result.append(_prepareSerie(exp_obj['mcrossinter'], 'mr_crossinter'),ignore_index=True) # for 'mcrossinter'
 
     
     pred_df = pd.DataFrame()
 
-    pred_df['technique'] = ['lime']*len(all_labels['lime']) + ['pyexp']*len(all_labels['pyexp']) + ['mctgan']*len(all_labels['mctgan']) + ['mcopulagan']*len(all_labels['mcopulagan'])+ ['mtvae']*len(all_labels['mtvae']) + ['mgcopula']*len(all_labels['mgcopula']) 
+    techs = []
+    for key in all_labels.keys() : 
+        techs += [key]*len(all_labels[key])
+    pred_df['technique'] = techs
 
-    # + ['mcrossinter']*len(all_labels['mcrossinter']) 
+    labs = []
+    for key in all_labels.keys() : 
+        labs += all_labels[key]
+    pred_df['label']  = labs
 
-    pred_df['label'] = all_labels['lime'] + all_labels['pyexp'] + all_labels['mctgan'] + all_labels['mcopulagan'] + all_labels['mtvae'] + all_labels['mgcopula']
-    # + all_labels['mcrossinter']
-
-    pred_df['prob'] = all_probs['lime'] + all_probs['pyexp'] + all_probs['mctgan'] + all_probs['mcopulagan'] + all_probs['mtvae'] + all_probs['mgcopula']
-    # + all_probs['mcrossinter']
+    probs = []
+    for key in all_probs.keys() : 
+        probs += all_probs[key]
+    pred_df['prob'] = probs
 
     pred_df['project'] = proj_name
     
     all_eval_result.columns = ['project', 'commit id', 'method', 'AUC', 'F1']
 
-    all_eval_result.to_csv(result_dir+'RQ2_'+proj_name+'_'+global_model_name+'_global_vs_local_synt_pred.csv',index=False)
-    pred_df.to_csv(result_dir+'RQ2_'+proj_name+'_'+global_model_name+'_probability_distribution.csv',index=False)
-    print('finished RQ2 of',proj_name)
+    all_eval_result.to_csv(result_dir+'RQ4_'+proj_name+'_'+global_model_name+'_global_vs_local_synt_pred.csv',index=False)
+    pred_df.to_csv(result_dir+'RQ4_'+proj_name+'_'+global_model_name+'_probability_distribution.csv',index=False)
+    print('finished RQ4 of',proj_name)
     
-def show_rq2_eval_result():
-    openstack_rf = pd.read_csv(result_dir+'RQ2_openstack_RF_global_vs_local_synt_pred.csv')
-    qt_rf = pd.read_csv(result_dir+'RQ2_qt_RF_global_vs_local_synt_pred.csv')
+def show_rq4_eval_result():
+    openstack_rf = pd.read_csv(result_dir+'RQ4_openstack_RF_global_vs_local_synt_pred.csv')
+    qt_rf = pd.read_csv(result_dir+'RQ4_qt_RF_global_vs_local_synt_pred.csv')
     result_rf = pd.concat([openstack_rf, qt_rf])
     result_rf['global_model'] = 'RF'
     
-    openstack_lr = pd.read_csv(result_dir+'/RQ2_openstack_LR_global_vs_local_synt_pred.csv')
-    qt_lr = pd.read_csv(result_dir+'/RQ2_qt_LR_global_vs_local_synt_pred.csv')
+    openstack_lr = pd.read_csv(result_dir+'/RQ4_openstack_LR_global_vs_local_synt_pred.csv')
+    qt_lr = pd.read_csv(result_dir+'/RQ4_qt_LR_global_vs_local_synt_pred.csv')
     result_lr = pd.concat([openstack_lr, qt_lr])
     result_lr['global_model'] = 'LR'
     
@@ -583,7 +518,7 @@ def show_rq2_eval_result():
     openstack_result = all_result[all_result['project']=='openstack']
     qt_result = all_result[all_result['project']=='qt']
 
-    fig, axs = plt.subplots(2,2, figsize=(10,10))
+    fig, axs = plt.subplots(2,2, figsize=(20,10))
 
     axs[0,0].set_title('Openstack')
     axs[0,1].set_title('Qt')
@@ -593,22 +528,13 @@ def show_rq2_eval_result():
     axs[1,0].set_ylim([0, 1])
     axs[1,1].set_ylim([0, 1])
 
-#     rows = ['AUC', 'F1']
     cols = ['Openstack','Qt']
-
-#     plt.setp(axs.flat, xlabel='Technique', ylabel='Probability')
-
     pad = 5 # in points
 
     for ax, col in zip(axs[0], cols):
         ax.annotate(col, xy=(0.5, 1), xytext=(0, pad),
                     xycoords='axes fraction', textcoords='offset points',
                     size='large', ha='center', va='baseline')
-
-#     for ax, row in zip(axs[:,0], rows):
-#         ax.annotate(row, xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - pad, 0),
-#                     xycoords=ax.yaxis.label, textcoords='offset points',
-#                     size='large', ha='right', va='center')
         
     sns.boxplot(data=openstack_result, x='global_model', y='AUC', hue='method', ax=axs[0,0])
     sns.boxplot(data=openstack_result, x='global_model', y='F1', hue='method', ax=axs[1,0])
@@ -616,17 +542,15 @@ def show_rq2_eval_result():
     sns.boxplot(data=qt_result, x='global_model', y='F1', hue='method', ax=axs[1,1])
 
     plt.show()
-    
-    all_result.to_csv(result_dir+'RQ2_prediction.csv',index=False)
-    
-    fig.savefig(fig_dir+'RQ2_prediction.png')
+    all_result.to_csv(result_dir+'RQ4_prediction.csv',index=False)
+    fig.savefig(fig_dir+'RQ4_prediction.png')
 
-def show_rq2_prob_distribution():
+def show_rq4_prob_distribution():
     
     d = {True: 'DEFECT', False: 'CLEAN'}
 
-    openstack_rf = pd.read_csv(result_dir+'RQ2_openstack_RF_probability_distribution.csv')
-    qt_rf = pd.read_csv(result_dir+'RQ2_qt_RF_probability_distribution.csv')
+    openstack_rf = pd.read_csv(result_dir+'RQ4_openstack_RF_probability_distribution.csv')
+    qt_rf = pd.read_csv(result_dir+'RQ4_qt_RF_probability_distribution.csv')
     
     mask = openstack_rf.applymap(type) != bool
     openstack_rf = openstack_rf.where(mask, openstack_rf.replace(d))
@@ -635,8 +559,8 @@ def show_rq2_prob_distribution():
     result_rf = pd.concat([openstack_rf, qt_rf])
     result_rf['global_model'] = 'RF'
     
-    openstack_lr = pd.read_csv(result_dir+'RQ2_openstack_LR_probability_distribution.csv')
-    qt_lr = pd.read_csv(result_dir+'RQ2_qt_LR_probability_distribution.csv')
+    openstack_lr = pd.read_csv(result_dir+'RQ4_openstack_LR_probability_distribution.csv')
+    qt_lr = pd.read_csv(result_dir+'RQ4_qt_LR_probability_distribution.csv')
     
     openstack_lr = openstack_lr.where(mask, openstack_lr.replace(d))
     qt_lr = qt_lr.where(mask, qt_lr.replace(d))
@@ -645,44 +569,26 @@ def show_rq2_prob_distribution():
     result_lr['global_model'] = 'LR'
     
     all_result = pd.concat([result_rf, result_lr])
+    
+    
+    fig, axs = plt.subplots(len(list_of_models),2, figsize=(10,10))
 
-    pyexp_openstack_result = all_result[(all_result['project']=='openstack') & (all_result['technique']=='pyExplainer')]
-    pyexp_qt_result = all_result[(all_result['project']=='qt') & (all_result['technique']=='pyExplainer')]
-    nh_openstack_result = all_result[(all_result['project']=='openstack') & (all_result['technique']=='mBase')]
-    nh_qt_result = all_result[(all_result['project']=='qt') & (all_result['technique']=='mBase')]
-    lime_openstack_result = all_result[(all_result['project']=='openstack') & (all_result['technique']=='LIME')]
-    lime_qt_result = all_result[(all_result['project']=='qt') & (all_result['technique']=='LIME')]
-    
-#     qt_result = all_result[all_result['project']=='qt']
-    
-    fig, axs = plt.subplots(3,2, figsize=(10,10))
+    for index in range(0,len(list_of_models)) : 
+        axs[index,0].set_ylim([0, 1])
+        axs[index,1].set_ylim([0, 1]) 
 
-    axs[0,0].set_ylim([0, 1])
-    axs[0,1].set_ylim([0, 1]) 
-    axs[1,0].set_ylim([0, 1])
-    axs[1,1].set_ylim([0, 1])
-    axs[2,0].set_ylim([0, 1])
-    axs[2,1].set_ylim([0, 1]) 
+        op_data = all_result[(all_result['project']=='openstack') & (all_result['technique']==list_of_models[index])]
+        qt_data = all_result[(all_result['project']=='qt') & (all_result['technique']==list_of_models[index])]
+        
+        sns.boxplot(data=op_data, x='global_model', y='prob', hue='label' , ax=axs[index,0])
+        sns.boxplot(data=qt_data,  x='global_model', y='prob', hue='label' , ax=axs[index,1])
+
+        axs[index,0].axhline(0.5, ls='--')
+        axs[index,1].axhline(0.5, ls='--')
     
-    sns.boxplot(data=pyexp_openstack_result, x='global_model', y='prob', hue='label' , ax=axs[0,0])
-    sns.boxplot(data=nh_openstack_result, x='global_model', y='prob', hue='label' , ax=axs[2,0])
-    sns.boxplot(data=lime_openstack_result,  x='global_model', y='prob', hue='label' , ax=axs[1,0])
-    sns.boxplot(data=pyexp_qt_result,  x='global_model', y='prob', hue='label' , ax=axs[0,1])
-    sns.boxplot(data=nh_qt_result,  x='global_model', y='prob', hue='label' , ax=axs[2,1])
-    sns.boxplot(data=lime_qt_result,  x='global_model', y='prob', hue='label' , ax=axs[1,1], palette=['darkorange','royalblue'])
-    
-    axs[0,0].axhline(0.5, ls='--')
-    axs[0,1].axhline(0.5, ls='--')
-    axs[1,0].axhline(0.5, ls='--')
-    axs[1,1].axhline(0.5, ls='--')
-    axs[2,0].axhline(0.5, ls='--')
-    axs[2,1].axhline(0.5, ls='--')
-    
-    rows = ['PyExplainer', 'LIME','NodeHarvest']
+    rows = list_of_models
     cols = ['Openstack','Qt']
-
     plt.setp(axs.flat, xlabel='Technique', ylabel='Probability')
-
     pad = 5 # in points
 
     for ax, col in zip(axs[0], cols):
@@ -696,10 +602,8 @@ def show_rq2_prob_distribution():
                     size='large', ha='right', va='center')
     
     plt.show()
-    
-    all_result.to_csv(result_dir+'RQ2_prediction_prob.csv',index=False)
-    
-    fig.savefig(fig_dir+'RQ2_prediction_prob.png')
+    all_result.to_csv(result_dir+'RQ4_prediction_prob.csv',index=False)
+    fig.savefig(fig_dir+'RQ4_prediction_prob.png')
     
 ###############################################################################
 def get_rule_str_of_rulefit(local_model, X_explain, debug= False):
