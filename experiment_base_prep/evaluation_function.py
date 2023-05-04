@@ -39,6 +39,9 @@ flip_sign_dict = {
 if not os.path.exists(fig_dir):
     os.makedirs(fig_dir)
 
+
+####### Helper Functions #####
+###############################################################################
 def aggregate_list(l):
     return np.mean(l), np.median(l)
 
@@ -152,6 +155,7 @@ def get_global_model_evaluation_result(proj_name):
     lr_prediction_df = get_prediction_result_df(proj_name, 'lr')
     eval_global_model(proj_name, lr_prediction_df)
 
+
 ####### RQ1 Evaluation #####
 ###############################################################################
 def rq1_preprocess(proj_name, global_model_name, debug=False):
@@ -242,6 +246,7 @@ def show_rq1_scores():
     # print the resulting grouped data
     print(grouped_data) 
 
+
 ####### RQ2 Evaluation #####
 ###############################################################################
 def rq2_preprocess(proj_name, global_model_name, debug=False):
@@ -326,9 +331,11 @@ def show_rq2_scores():
     # print the resulting grouped data
     print(grouped_data) 
 
+
 ###############################################################################
 def test_file_sync():
     print("Version 6.3.{}".format(datetime.now().strftime("%H:%M:%S")))
+
 
 ####### RQ3 Evaluation #####
 ###############################################################################
@@ -338,7 +345,6 @@ def rq3_showsampledata(proj_name, global_model_name, debug=False):
     print(feature_df.head())
     summary = feature_df.describe()
     print(summary)
-
 
 def rq3_preprocess(proj_name, global_model_name, debug=False):
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
@@ -378,6 +384,58 @@ def rq3_preprocess(proj_name, global_model_name, debug=False):
     all_eval_result.columns =['project', 'commit id', 'method', 'percent_duplicates']
     all_eval_result.to_csv(result_dir+'RQ3_syndata_'+proj_name+'_'+global_model_name+'.csv',index=False)
     print('finished RQ1 Preprocess of',proj_name,', globla model is',global_model_name)
+
+def show_rq3_images() :
+    openstack_rf = pd.read_csv(result_dir+'RQ2_syndata_time_openstack_RF.csv')
+    qt_rf = pd.read_csv(result_dir+'RQ2_syndata_time_qt_RF.csv')
+    result_rf = pd.concat([openstack_rf, qt_rf])
+    result_rf['global_model'] = 'RF'
+    
+    openstack_lr = pd.read_csv(result_dir+'RQ2_syndata_time_openstack_LR.csv')
+    qt_lr = pd.read_csv(result_dir+'RQ2_syndata_time_qt_LR.csv')
+    result_lr = pd.concat([openstack_lr, qt_lr])
+    result_lr['global_model'] = 'LR'
+    
+    all_result = pd.concat([result_rf, result_lr])
+
+    fig, axs = plt.subplots(1,2, figsize=(10,6))
+
+    axs[0].set_title('RF')
+    axs[1].set_title('LR')
+    
+    axs[0].set(ylim=(0, 300))
+    axs[1].set(ylim=(0, 300))
+    
+    sns.boxplot(data=result_rf, x='project', y='time', hue='method', ax=axs[0])
+    sns.boxplot(data=result_lr, x='project', y='time', hue='method', ax=axs[1])
+    
+    plt.show()
+    
+    all_result.to_csv(result_dir+'/RQ2_syndata.csv',index=False)
+    fig.savefig(fig_dir+'RQ2.png')
+
+def show_rq3_scores(): 
+    openstack_rf = pd.read_csv(result_dir+'RQ2_syndata_time_openstack_RF.csv')
+    qt_rf = pd.read_csv(result_dir+'RQ2_syndata_time_qt_RF.csv')
+    result_rf = pd.concat([openstack_rf, qt_rf])
+    result_rf['global_model'] = 'RF'
+    
+    openstack_lr = pd.read_csv(result_dir+'RQ2_syndata_time_openstack_LR.csv')
+    qt_lr = pd.read_csv(result_dir+'RQ2_syndata_time_qt_LR.csv')
+    result_lr = pd.concat([openstack_lr, qt_lr])
+    result_lr['global_model'] = 'LR'
+    
+    all_result = pd.concat([result_rf, result_lr])
+    
+    # group the data based on the 'method' feature and find the min/max values of features 5 and 6 for each group
+    grouped_data = all_result.groupby('method').agg({'time': ['min','mean']})
+
+    print("gcopula is faster than pyexp by ",grouped_data.loc['pyexp', ('time', 'mean')]/grouped_data.loc['gcopula', ('time', 'mean')], " factors.")
+    print()
+
+    # print the resulting grouped data
+    print(grouped_data) 
+
 
 
 ####### RQ4 Evaluation #####
@@ -604,7 +662,10 @@ def show_rq4_prob_distribution():
     plt.show()
     all_result.to_csv(result_dir+'RQ4_prediction_prob.csv',index=False)
     fig.savefig(fig_dir+'RQ4_prediction_prob.png')
-    
+
+
+
+####### Helper Functions #####
 ###############################################################################
 def get_rule_str_of_rulefit(local_model, X_explain, debug= False):
     rules = local_model.get_rules() # fetch the list of all the rules for this particular instance 
@@ -693,6 +754,9 @@ def summarize_rule_eval_result(rule_str, x_df):
 
     return all_eval_result
 
+
+####### Authors RQ3 Evaluation #####
+###############################################################################
 def rq3_eval(proj_name, global_model_name, debug = False):
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
     x_test, y_test = prepare_data(proj_name, mode = 'test')
@@ -850,6 +914,8 @@ def show_rq3_eval_result():
     printRQ3Scores(qt_lr ,'qt', 'LR') 
     
 
+####### Helper Functions #####
+###############################################################################
 def flip_rule(rule,debug=False):
     rule = re.sub(r'\b=\b',' = ',rule) # for LIME
     found_rule = re.findall('.* <=? [a-zA-Z]+ <=? .*', rule) # for LIME
@@ -939,6 +1005,10 @@ def get_combined_probs(X_input, global_model, input_guidance, input_SD,debug=Fal
     output_df.columns = ['guidance', 'probOg', 'probRevisedSD']
     return output_df
 
+
+
+####### Authors What-If Evaluation #####
+###############################################################################
 def what_if_analysis(proj_name, global_model_name, debug = False):
     global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
 
