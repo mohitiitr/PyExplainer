@@ -437,7 +437,6 @@ def show_rq3_scores():
     print(grouped_data) 
 
 
-
 ####### RQ4 Evaluation #####
 ############################################################################### 
 list_of_models = ['lime' , 'pyexp', 'py_ctgan', 'py_copulagan', 'py_tvae', 'py_gcopula', 'mctgan', 'mcopulagan', 'mtvae', 'mgcopula' , 'mcrossinter', 'mr_ctgan', 'mr_copulagan', 'mr_tvae', 'mr_gcopula', 'mr_crossinter' ]
@@ -628,44 +627,160 @@ def show_rq4_prob_distribution():
     
     all_result = pd.concat([result_rf, result_lr])
     
-    
-    fig, axs = plt.subplots(len(list_of_models),2, figsize=(10,10))
-
+    print("Generating Probs for Each Model")
     for index in range(0,len(list_of_models)) : 
-        axs[index,0].set_ylim([0, 1])
-        axs[index,1].set_ylim([0, 1]) 
+        print(list_of_models[index])
+        fig, axs = plt.subplots(1,2, figsize=(10,10))
+
+        axs[0].set_ylim([0, 1])
+        axs[1].set_ylim([0, 1]) 
 
         op_data = all_result[(all_result['project']=='openstack') & (all_result['technique']==list_of_models[index])]
         qt_data = all_result[(all_result['project']=='qt') & (all_result['technique']==list_of_models[index])]
         
-        sns.boxplot(data=op_data, x='global_model', y='prob', hue='label' , ax=axs[index,0])
-        sns.boxplot(data=qt_data,  x='global_model', y='prob', hue='label' , ax=axs[index,1])
+        sns.boxplot(data=op_data, x='global_model', y='prob', hue='label' , ax=axs[0])
+        sns.boxplot(data=qt_data,  x='global_model', y='prob', hue='label' , ax=axs[1])
 
-        axs[index,0].axhline(0.5, ls='--')
-        axs[index,1].axhline(0.5, ls='--')
+        axs[0].axhline(0.5, ls='--')
+        axs[1].axhline(0.5, ls='--')
+
+        plt.setp(axs.flat, xlabel=list_of_models[index], ylabel='Probability')
+        pad = 5 # in points
+
+        axs[0].annotate('Openstack', xy=(0.5, 1), xytext=(0, pad),
+                        xycoords='axes fraction', textcoords='offset points',
+                        size='large', ha='center', va='baseline')
+        axs[1].annotate('Qt', xy=(0.5, 1), xytext=(0, pad),
+                        xycoords='axes fraction', textcoords='offset points',
+                        size='large', ha='center', va='baseline')
+            
     
-    rows = list_of_models
-    cols = ['Openstack','Qt']
-    plt.setp(axs.flat, xlabel='Technique', ylabel='Probability')
-    pad = 5 # in points
+        plt.show()
+        fig.savefig(fig_dir+'RQ4_prediction_prob_'+list_of_models[index]+'.png')
 
-    for ax, col in zip(axs[0], cols):
-        ax.annotate(col, xy=(0.5, 1), xytext=(0, pad),
-                    xycoords='axes fraction', textcoords='offset points',
-                    size='large', ha='center', va='baseline')
+    all_result.to_csv(result_dir+'RQ4_prediction_prob.csv',index=False)
+    
 
-    for ax, row in zip(axs[:,0], rows):
-        ax.annotate(row, xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - pad, 0),
-                    xycoords=ax.yaxis.label, textcoords='offset points',
-                    size='large', ha='right', va='center')
+####### RQ5 Evaluation #####
+############################################################################### 
+# For Evaluation of RQ5 there is no code, the output of the execution was manually evaluated to compute the stability
+
+
+####### RQ6 Evaluation #####
+############################################################################### 
+def rq6_preprocess(proj_name, global_model_name, debug=False):
+    global_model_name = global_model_name.upper()
+    
+    global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
+    time_result = pd.DataFrame()
+
+    def _prepareSerie(exp, exp_name) : 
+        time = exp['time']
+        serie = pd.Series(data=[proj_name, row_index, exp_name, time])
+        return serie
+        
+        exp_serie = pd.Series(data=[proj_name, row_index, exp_name, exp_auc, exp_f1]) # embed data in the serie and return
+        return exp_serie
+       
+    for i in tqdm(range(0,len(feature_df))):
+        if debug : 
+            if i > 0 : 
+                break
+        X_explain = feature_df.iloc[[i]]
+
+        row_index = str(X_explain.index[0])
+
+        # Load FiRST Batch of trained models. 
+        exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_'+row_index+'.pkl'),'rb'))
+        
+        time_result = time_result.append(_prepareSerie(exp_obj['LIME'], 'lime'),ignore_index=True) # for LIME
+        time_result = time_result.append(_prepareSerie(exp_obj['pyexp'], 'pyexp'),ignore_index=True) # for 'PyExplainer' with crossinter
+        # time_result = time_result.append(_prepareSerie(exp_obj['py_ctgan'], 'py_ctgan'),ignore_index=True) # for 'PyExplainer' with ctgan
+        # time_result = time_result.append(_prepareSerie(exp_obj['py_copulagan'], 'py_copulagan'),ignore_index=True) # for 'PyExplainer' with copulagan
+        # time_result = time_result.append(_prepareSerie(exp_obj['py_tvae'], 'py_tvae'),ignore_index=True) # for 'PyExplainer' with tvae
+        # time_result = time_result.append(_prepareSerie(exp_obj['py_gcopula'], 'py_gcopula'),ignore_index=True) # for 'PyExplainer' with gcopula
+
+        # Load SECOND Batch of trained models. 
+        exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_mnc'+row_index+'.pkl'),'rb'))     
+
+        # time_result = time_result.append(_prepareSerie(exp_obj['mctgan'], 'mctgan'),ignore_index=True) # for 'mctgan'
+        # time_result = time_result.append(_prepareSerie(exp_obj['mcopulagan'], 'mcopulagan'),ignore_index=True) # for 'mcopulagan'
+        # time_result = time_result.append(_prepareSerie(exp_obj['mtvae'], 'mtvae'),ignore_index=True) # for 'mtvae'
+        time_result = time_result.append(_prepareSerie(exp_obj['mgcopula'], 'mgcopula'),ignore_index=True) # for 'mgcopula'
+        time_result = time_result.append(_prepareSerie(exp_obj['mcrossinter'], 'mcrossinter'),ignore_index=True) # for 'mcrossinter'
+
+        # Load THiRD Batch of trained models. 
+        exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_mnr'+row_index+'.pkl'),'rb'))     
+
+        # time_result = time_result.append(_prepareSerie(exp_obj['mctgan'], 'mr_ctgan'),ignore_index=True) # for 'mctgan'
+        # time_result = time_result.append(_prepareSerie(exp_obj['mcopulagan'], 'mr_copulagan'),ignore_index=True) # for 'mcopulagan'
+        # time_result = time_result.append(_prepareSerie(exp_obj['mtvae'], 'mr_tvae'),ignore_index=True) # for 'mtvae'
+        time_result = time_result.append(_prepareSerie(exp_obj['mgcopula'], 'mr_gcopula'),ignore_index=True) # for 'mgcopula'
+        time_result = time_result.append(_prepareSerie(exp_obj['mcrossinter'], 'mr_crossinter'),ignore_index=True) # for 'mcrossinter'
+
+
+    time_result.columns = ['project', 'commit id', 'method', 'time']
+    time_result.to_csv(result_dir+'RQ6_time_'+proj_name+'_'+global_model_name+'.csv',index=False)
+    print('finished RQ6 of',proj_name)
+
+def show_rq6_images() :
+    openstack_rf = pd.read_csv(result_dir+'RQ6_time_openstack_RF.csv')
+    qt_rf = pd.read_csv(result_dir+'RQ6_time_qt_RF.csv')
+    result_rf = pd.concat([openstack_rf, qt_rf])
+    result_rf['global_model'] = 'RF'
+    
+    openstack_lr = pd.read_csv(result_dir+'RQ6_time_openstack_LR.csv')
+    qt_lr = pd.read_csv(result_dir+'RQ6_time_qt_LR.csv')
+    result_lr = pd.concat([openstack_lr, qt_lr])
+    result_lr['global_model'] = 'LR'
+    
+    all_result = pd.concat([result_rf, result_lr])
+
+    fig, axs = plt.subplots(1,2, figsize=(10,6))
+
+    axs[0].set_title('RF')
+    axs[1].set_title('LR')
+    
+    axs[0].set(ylim=(0, 50))
+    axs[1].set(ylim=(0, 50))
+    
+    sns.boxplot(data=result_rf, x='project', y='time', hue='method', ax=axs[0])
+    sns.boxplot(data=result_lr, x='project', y='time', hue='method', ax=axs[1])
     
     plt.show()
-    all_result.to_csv(result_dir+'RQ4_prediction_prob.csv',index=False)
-    fig.savefig(fig_dir+'RQ4_prediction_prob.png')
+    
+    all_result.to_csv(result_dir+'/RQ6_time.csv',index=False)
+    fig.savefig(fig_dir+'RQ6.png')
+
+def show_rq6_scores(): 
+    openstack_rf = pd.read_csv(result_dir+'RQ6_time_openstack_RF.csv')
+    qt_rf = pd.read_csv(result_dir+'RQ6_time_qt_RF.csv')
+    result_rf = pd.concat([openstack_rf, qt_rf])
+    result_rf['global_model'] = 'RF'
+    
+    openstack_lr = pd.read_csv(result_dir+'RQ6_time_openstack_LR.csv')
+    qt_lr = pd.read_csv(result_dir+'RQ6_time_qt_LR.csv')
+    result_lr = pd.concat([openstack_lr, qt_lr])
+    result_lr['global_model'] = 'LR'
+    
+    all_result = pd.concat([result_rf, result_lr])
+    
+    # group the data based on the 'method' feature and find the min/max values of features 5 and 6 for each group
+    grouped_data = all_result.groupby('method').agg({'time': ['min','mean']})
+
+    print("mgcopula is faster than pyexp by ",grouped_data.loc['pyexp', ('time', 'mean')]/grouped_data.loc['mgcopula', ('time', 'mean')], " factors.")
+    print("mr_gcopula is faster than pyexp by ",grouped_data.loc['pyexp', ('time', 'mean')]/grouped_data.loc['mr_gcopula', ('time', 'mean')], " factors.")
+
+    print("mgcopula is faster than lime by ",grouped_data.loc['lime', ('time', 'mean')]/grouped_data.loc['mgcopula', ('time', 'mean')], " factors.")
+    print("mr_gcopula is faster than lime by ",grouped_data.loc['lime', ('time', 'mean')]/grouped_data.loc['mr_gcopula', ('time', 'mean')], " factors.")
+
+    print()
+
+    # print the resulting grouped data
+    print(grouped_data) 
 
 
-
-####### Helper Functions #####
+####### Helper Functions For RQ7 #####
 ###############################################################################
 def get_rule_str_of_rulefit(local_model, X_explain, debug= False):
     rules = local_model.get_rules() # fetch the list of all the rules for this particular instance 
@@ -754,100 +869,6 @@ def summarize_rule_eval_result(rule_str, x_df):
 
     return all_eval_result
 
-
-####### Authors RQ3 Evaluation #####
-###############################################################################
-def rq3_eval(proj_name, global_model_name, debug = False):
-    global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
-    x_test, y_test = prepare_data(proj_name, mode = 'test')
-
-    rq3_explanation_result = pd.DataFrame()
-    
-    pyexp_guidance_result_list = []
-    lime_guidance_result_df = pd.DataFrame()
-    
-    for i in tqdm(range(0,len(feature_df))):
-        if debug : 
-            if i > 1 : 
-                break 
-        
-        X_explain = feature_df.iloc[[i]]
-
-        row_index = str(X_explain.index[0])
-
-        exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_'+row_index+'.pkl'),'rb'))
-        py_exp = exp_obj['pyExplainer']
-        lime_exp = exp_obj['LIME']
-        nh_exp = exp_obj['MBase']
-
-        # load local models
-        py_exp_local_model = py_exp['local_model']
-        lime_exp_local_model = lime_exp['local_model']
-        nh_exp_local_model = nh_exp['local_model']
-        
-        # generate explanations                
-        py_exp_the_best_defective_rule_str = get_rule_str_of_rulefit(py_exp_local_model, X_explain, debug)
-        lime_the_best_defective_rule_str = lime_exp['rule'].as_list()[0][0]
-        nh_exp_the_best_defective_rule_str = get_rule_str_of_nodeharvest(nh_exp_local_model, X_explain, debug)
-
-        if debug :
-            print(i)
-            print(py_exp_the_best_defective_rule_str) 
-            print(lime_the_best_defective_rule_str)
-            print(nh_exp_the_best_defective_rule_str)
-            break 
-
-        # check whether explanations apply to the instance to be explained
-        py_exp_pred = eval_rule(py_exp_the_best_defective_rule_str, X_explain)[0]
-        lime_pred = eval_rule(lime_the_best_defective_rule_str, X_explain)[0]
-        nh_exp_pred = eval_rule(nh_exp_the_best_defective_rule_str, X_explain)[0] 
-
-        ################### Specific to PyExplainer ##############################
-        condition_list = py_exp_the_best_defective_rule_str.split('&')
-
-        for condition in condition_list:
-            condition = condition.strip()
-
-            py_exp_rule_eval = summarize_rule_eval_result(condition, x_test)
-
-            rule_rec = recall_score(y_test, py_exp_rule_eval)
-
-            py_exp_serie_test = pd.Series(data=[proj_name, row_index, 'pyExplainer',global_model_name, condition, rule_rec])
-            rq3_explanation_result = rq3_explanation_result.append(py_exp_serie_test,ignore_index=True)
-
-        ################### Specific to PyExplainer Ends ##############################
-        
-        ################### Specific to LIME Starts ##############################
-        lime_rule_eval = summarize_rule_eval_result(lime_the_best_defective_rule_str, x_test)
-
-        rule_rec = recall_score(y_test, lime_rule_eval)
-
-        lime_serie_test = pd.Series(data=[proj_name, row_index, 'LIME',global_model_name, lime_the_best_defective_rule_str, rule_rec])
-        rq3_explanation_result = rq3_explanation_result.append(lime_serie_test,ignore_index=True)
-        ################### Specific to LIME Ends ##############################
-        
-
-        ################### Specific to Nodeharvest Starts ##############################
-        condition_list = nh_exp_the_best_defective_rule_str.split('&')
-
-        for condition in condition_list:
-            condition = condition.strip()
-
-            nh_exp_rule_eval = summarize_rule_eval_result(condition, x_test)
-
-            rule_rec = recall_score(y_test, nh_exp_rule_eval)
-
-            nh_exp_serie_test = pd.Series(data=[proj_name, row_index, 'mBase',global_model_name, condition, rule_rec])
-            rq3_explanation_result = rq3_explanation_result.append(nh_exp_serie_test,ignore_index=True)
-        ################### Specific to Nodeharvest Ends ##############################
-
-    if debug : 
-        return 1
-    
-    rq3_explanation_result.columns = ['project','commit_id','method','global_model','explanation','recall']
-    rq3_explanation_result.to_csv(result_dir+'RQ3_'+proj_name+'_'+global_model_name+'_explanation_eval_split_rulefit_condition.csv',
-                                  index=False)
-    
 def get_percent_unique_explanation(proj_name, global_model_name, agnostic_name , explanation_list):
     
     print('project: {}, JIT model: {}, Agnostic: {}'.format(proj_name, global_model_name,agnostic_name))
@@ -865,25 +886,102 @@ def get_percent_unique_explanation(proj_name, global_model_name, agnostic_name ,
     
     print('-'*50)
 
-def printRQ3Scores(results,proj_name, global_model_name) : 
+def printRQ7Scores(results,proj_name, global_model_name) : 
 
-    r_lime = results[results['method']=='LIME']
-    r_pyexp = results[results['method']=='pyExplainer']
-    r_nhexp = results[results['method']=='mBase']
+    r_lime = results[results['method']=='lime']
+    r_pyexp = results[results['method']=='pyexp']
+    r_tl = results[results['method']=='mgcopula']
 
     get_percent_unique_explanation(proj_name,global_model_name, 'LIME', list(r_lime['explanation']))
     get_percent_unique_explanation(proj_name,global_model_name, 'pyExplainer', list(r_pyexp['explanation']))
-    get_percent_unique_explanation(proj_name,global_model_name, 'NodeHarvest', list(r_nhexp['explanation']))
+    get_percent_unique_explanation(proj_name,global_model_name, 'TwiceLearn', list(r_tl['explanation']))
 
-def show_rq3_eval_result():
 
-    openstack_rf = pd.read_csv(result_dir+'RQ3_openstack_RF_explanation_eval_split_rulefit_condition.csv')
-    qt_rf = pd.read_csv(result_dir+'RQ3_qt_RF_explanation_eval_split_rulefit_condition.csv')
+####### RQ7 Evaluation #####
+###############################################################################
+def rq7_eval(proj_name, global_model_name, debug = False):
+    global_model_name = global_model_name.upper()
+    
+    global_model, correctly_predict_df, indep, dep, feature_df = prepare_data_for_testing(proj_name, global_model_name)
+    x_test, y_test = prepare_data(proj_name, mode = 'test')
+    consistency_result = pd.DataFrame()
+
+    def _prepareSerie(exp, exp_name) : 
+        local_model = exp['local_model']
+
+        if exp_name == 'lime' : 
+            best_defective_rule_str = exp['rule'].as_list()[0][0]
+        elif 'py' in exp_name : 
+            best_defective_rule_str = get_rule_str_of_rulefit(local_model, X_explain, debug)
+        else :
+            best_defective_rule_str =  get_rule_str_of_nodeharvest(local_model, X_explain, debug)
+
+    
+        ## incase required to check if the rule string is valid of not
+        # prediction_value  = eval_rule(best_defective_rule_str,X_explain)[0]
+
+        if exp_name == 'lime' : 
+            rule_eval = summarize_rule_eval_result(best_defective_rule_str, x_test)
+            rule_rec = recall_score(y_test, rule_eval)
+            serie = pd.Series(data=[proj_name, row_index, exp_name, global_model_name,best_defective_rule_str, rule_rec])
+        else : 
+            condition_list = best_defective_rule_str.split('&')
+            for condition in condition_list:
+                condition = condition.strip()
+                rule_eval = summarize_rule_eval_result(condition, x_test)
+                rule_rec = recall_score(y_test, rule_eval)
+                serie = pd.Series(data=[proj_name, row_index, exp_name, global_model_name, condition, rule_rec])
+                
+        return serie
+            
+    for i in tqdm(range(0,len(feature_df))):
+        if debug : 
+            if i > 0 : 
+                break
+        X_explain = feature_df.iloc[[i]]
+
+        row_index = str(X_explain.index[0])
+
+        ## Load FiRST Batch of trained models. 
+        exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_'+row_index+'.pkl'),'rb'))
+        
+        consistency_result = consistency_result.append(_prepareSerie(exp_obj['LIME'], 'lime'),ignore_index=True) # for LIME
+        consistency_result = consistency_result.append(_prepareSerie(exp_obj['pyexp'], 'pyexp'),ignore_index=True) # for 'PyExplainer' with crossinter
+        #consistency_result = consistency_result.append(_prepareSerie(exp_obj['py_ctgan'], 'py_ctgan'),ignore_index=True) # for 'PyExplainer' with ctgan
+        #consistency_result = consistency_result.append(_prepareSerie(exp_obj['py_copulagan'], 'py_copulagan'),ignore_index=True) # for 'PyExplainer' with copulagan
+        #consistency_result = consistency_result.append(_prepareSerie(exp_obj['py_tvae'], 'py_tvae'),ignore_index=True) # for 'PyExplainer' with tvae
+        #consistency_result = consistency_result.append(_prepareSerie(exp_obj['py_gcopula'], 'py_gcopula'),ignore_index=True) # for 'PyExplainer' with gcopula
+
+        ## Load SECOND Batch of trained models. 
+        exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_mnc'+row_index+'.pkl'),'rb'))     
+
+        #consistency_result = consistency_result.append(_prepareSerie(exp_obj['mctgan'], 'mctgan'),ignore_index=True) # for 'mctgan'
+        #consistency_result = consistency_result.append(_prepareSerie(exp_obj['mcopulagan'], 'mcopulagan'),ignore_index=True) # for 'mcopulagan'
+        #consistency_result = consistency_result.append(_prepareSerie(exp_obj['mtvae'], 'mtvae'),ignore_index=True) # for 'mtvae'
+        consistency_result = consistency_result.append(_prepareSerie(exp_obj['mgcopula'], 'mgcopula'),ignore_index=True) # for 'mgcopula'
+        consistency_result = consistency_result.append(_prepareSerie(exp_obj['mcrossinter'], 'mcrossinter'),ignore_index=True) # for 'mcrossinter'
+
+        ## Load THiRD Batch of trained models. 
+        #exp_obj = pickle.load(open(os.path.join(exp_dir,proj_name,global_model_name,'all_explainer_mnr'+row_index+'.pkl'),'rb'))     
+
+        #consistency_result = consistency_result.append(_prepareSerie(exp_obj['mctgan'], 'mr_ctgan'),ignore_index=True) # for 'mctgan'
+        #consistency_result = consistency_result.append(_prepareSerie(exp_obj['mcopulagan'], 'mr_copulagan'),ignore_index=True) # for 'mcopulagan'
+        #consistency_result = consistency_result.append(_prepareSerie(exp_obj['mtvae'], 'mr_tvae'),ignore_index=True) # for 'mtvae'
+        #consistency_result = consistency_result.append(_prepareSerie(exp_obj['mgcopula'], 'mr_gcopula'),ignore_index=True) # for 'mgcopula'
+        #consistency_result = consistency_result.append(_prepareSerie(exp_obj['mcrossinter'], 'mr_crossinter'),ignore_index=True) # for 'mcrossinter'
+
+    consistency_result.columns = ['project','commit_id','method','global_model','explanation','recall']
+    consistency_result.to_csv(result_dir+'RQ7_'+proj_name+'_'+global_model_name+'_explanation_eval_split.csv',
+                                  index=False)
+
+def show_rq7_eval_result():
+    openstack_rf = pd.read_csv(result_dir+'RQ7_openstack_RF_explanation_eval_split.csv')
+    qt_rf = pd.read_csv(result_dir+'RQ7_qt_RF_explanation_eval_split.csv')
     result_rf = pd.concat([openstack_rf, qt_rf])
     result_rf['global_model'] = 'RF'
     
-    openstack_lr = pd.read_csv(result_dir+'RQ3_openstack_LR_explanation_eval_split_rulefit_condition.csv')
-    qt_lr = pd.read_csv(result_dir+'RQ3_qt_LR_explanation_eval_split_rulefit_condition.csv')
+    openstack_lr = pd.read_csv(result_dir+'RQ7_openstack_LR_explanation_eval_split.csv')
+    qt_lr = pd.read_csv(result_dir+'RQ7_qt_LR_explanation_eval_split.csv')
     result_lr = pd.concat([openstack_lr, qt_lr])
     result_lr['global_model'] = 'LR'
     
@@ -897,21 +995,18 @@ def show_rq3_eval_result():
     axs[0].set_title('Openstack')
     axs[1].set_title('Qt')
 
-    my_pal = {"pyExplainer": "y", "LIME": "b", "mBase":"g"}
-    sns.boxplot(data=openstack_result, x='global_model', y='recall', 
-                hue='method', ax=axs[0]).set(xlabel='', ylabel='Consistency Percentage (%)')
-    sns.boxplot(data=qt_result, x='global_model', y='recall', 
-                hue='method', ax=axs[1]).set(xlabel='', ylabel='')
+    sns.boxplot(data=openstack_result, x='global_model', y='recall', hue='method', ax=axs[0]).set(xlabel='', ylabel='Consistency Percentage (%)')
+    sns.boxplot(data=qt_result, x='global_model', y='recall', hue='method', ax=axs[1]).set(xlabel='', ylabel='')
 
     plt.show()
-    fig.savefig(fig_dir+'RQ3.png')
+    fig.savefig(fig_dir+'RQ7.png')
     ## by now the figure has been drawn, 
     # now I am reporting the numbers for Agnostics
 
-    printRQ3Scores(openstack_rf ,'OpenStack', 'RF') 
-    printRQ3Scores(openstack_lr ,'OpenStack', 'LR') 
-    printRQ3Scores(qt_rf ,'qt', 'RF') 
-    printRQ3Scores(qt_lr ,'qt', 'LR') 
+    printRQ7Scores(openstack_rf ,'OpenStack', 'RF') 
+    printRQ7Scores(openstack_lr ,'OpenStack', 'LR') 
+    printRQ7Scores(qt_rf ,'qt', 'RF') 
+    printRQ7Scores(qt_lr ,'qt', 'LR') 
     
 
 ####### Helper Functions #####
